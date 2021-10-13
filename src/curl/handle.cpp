@@ -61,7 +61,7 @@ namespace asyncpp::curl {
 
 	void handle::set_url(const char* url) { set_option_ptr(CURLOPT_URL, url); }
 
-    void handle::set_url(const std::string& url) { return set_url(url.c_str()); }
+	void handle::set_url(const std::string& url) { return set_url(url.c_str()); }
 
 	void handle::set_follow_location(bool on) { set_option_bool(CURLOPT_FOLLOWLOCATION, on); }
 

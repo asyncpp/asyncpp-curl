@@ -1,5 +1,5 @@
-#include <curl/curl.h>
 #include <asyncpp/curl/slist.h>
+#include <curl/curl.h>
 #include <new>
 #include <utility>
 
@@ -35,22 +35,20 @@ namespace asyncpp::curl {
 		return {first_node, last_node};
 	}
 
-	slist::slist(curl_slist* raw, ownership_take_tag)
-        : m_first_node{raw}
-    {
-        auto ptr = m_first_node;
-        while(ptr) {
-            if(!ptr->next) break;
-            ptr = ptr->next;
-        }
-        m_last_node = ptr;
-    }
+	slist::slist(curl_slist* raw, ownership_take_tag) : m_first_node{raw} {
+		auto ptr = m_first_node;
+		while (ptr) {
+			if (!ptr->next) break;
+			ptr = ptr->next;
+		}
+		m_last_node = ptr;
+	}
 
 	slist::slist(const curl_slist* raw, ownership_copy_tag) {
-        auto l = copy_slist(raw);
+		auto l = copy_slist(raw);
 		m_first_node = l.first;
 		m_last_node = l.second;
-    }
+	}
 
 	slist::slist(const slist& other) {
 		auto l = copy_slist(other.m_first_node);
@@ -83,8 +81,8 @@ namespace asyncpp::curl {
 		auto n = curl_slist_append(nullptr, str);
 		if (!n) throw std::bad_alloc{};
 		if (!m_first_node) m_first_node = n;
-		if(m_last_node) m_last_node->next = n;
-        m_last_node = n;
+		if (m_last_node) m_last_node->next = n;
+		m_last_node = n;
 		return slist_iterator{n};
 	}
 
@@ -113,7 +111,7 @@ namespace asyncpp::curl {
 				if (!n) throw std::bad_alloc{};
 				n->next = ptr;
 				prev->next = n;
-                if(prev == m_last_node) m_last_node = n;
+				if (prev == m_last_node) m_last_node = n;
 				return slist_iterator{n};
 			}
 			return slist_iterator{nullptr};
@@ -122,8 +120,8 @@ namespace asyncpp::curl {
 
 	slist_iterator slist::insert_after(slist_iterator it, const char* str) {
 		if (it.m_current) {
-            auto n = curl_slist_append(nullptr, str);
-		    if (!n) throw std::bad_alloc{};
+			auto n = curl_slist_append(nullptr, str);
+			if (!n) throw std::bad_alloc{};
 			n->next = it.m_current->next;
 			it.m_current->next = n;
 			if (n->next == nullptr) m_last_node = n;
@@ -136,7 +134,7 @@ namespace asyncpp::curl {
 	void slist::remove(size_t index) {
 		if (index == 0) {
 			auto ptr = m_first_node;
-            if(m_last_node == ptr) m_last_node = nullptr;
+			if (m_last_node == ptr) m_last_node = nullptr;
 			if (ptr) {
 				m_first_node = ptr->next;
 				ptr->next = nullptr;
@@ -151,7 +149,7 @@ namespace asyncpp::curl {
 				ptr = ptr->next;
 			}
 			if (ptr) {
-                if(ptr == m_last_node) m_last_node = prev;
+				if (ptr == m_last_node) m_last_node = prev;
 				prev->next = ptr->next;
 				ptr->next = nullptr;
 				curl_slist_free_all(ptr);
@@ -159,28 +157,24 @@ namespace asyncpp::curl {
 		}
 	}
 
-    void slist::remove(slist_iterator it) {
-        if(!it.m_current) {
-            it.m_current = m_last_node;
-        }
-        if(it.m_current == nullptr) return;
-        if(it.m_current == m_first_node) {
-            m_first_node = it.m_current->next;
-            if(m_first_node == nullptr)
-                m_last_node = nullptr;
-        } else {
-            auto prev = m_first_node;
-			while(prev && prev->next != it.m_current) {
-                prev = prev->next;
-            }
-            if(!prev) return;
-            prev->next = it.m_current->next;
-            if(it.m_current->next == nullptr)
-                m_last_node = prev;
-        }
-        it.m_current->next = nullptr;
-        curl_slist_free_all(it.m_current);
-    }
+	void slist::remove(slist_iterator it) {
+		if (!it.m_current) { it.m_current = m_last_node; }
+		if (it.m_current == nullptr) return;
+		if (it.m_current == m_first_node) {
+			m_first_node = it.m_current->next;
+			if (m_first_node == nullptr) m_last_node = nullptr;
+		} else {
+			auto prev = m_first_node;
+			while (prev && prev->next != it.m_current) {
+				prev = prev->next;
+			}
+			if (!prev) return;
+			prev->next = it.m_current->next;
+			if (it.m_current->next == nullptr) m_last_node = prev;
+		}
+		it.m_current->next = nullptr;
+		curl_slist_free_all(it.m_current);
+	}
 
 	void slist::clear() {
 		curl_slist_free_all(m_first_node);
@@ -188,4 +182,4 @@ namespace asyncpp::curl {
 		m_last_node = nullptr;
 	}
 
-} // namespace thalhammer::curlpp
+} // namespace asyncpp::curl

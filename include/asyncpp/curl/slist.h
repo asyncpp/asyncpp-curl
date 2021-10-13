@@ -3,11 +3,12 @@
 
 struct curl_slist;
 namespace asyncpp::curl {
-    class slist;
-    class handle;
+	class slist;
+	class handle;
 	class slist_iterator {
 		curl_slist* m_current = nullptr;
-        friend class slist;
+		friend class slist;
+
 	public:
 		using iterator_category = std::forward_iterator_tag;
 		using difference_type = std::ptrdiff_t; // This is useless, but c++ requires it
@@ -30,30 +31,33 @@ namespace asyncpp::curl {
 	class slist {
 		curl_slist* m_first_node = nullptr;
 		curl_slist* m_last_node = nullptr; // Used to speed up append
-        friend class handle;
+		friend class handle;
+
 	public:
-        static const struct ownership_take_tag {} ownership_take;
-        static const struct ownership_copy_tag {} ownership_copy;
-        slist() = default;
-        // Takes ownership
-        slist(curl_slist* raw, ownership_take_tag);
-        slist(const curl_slist* raw, ownership_copy_tag);
+		static const struct ownership_take_tag {
+		} ownership_take;
+		static const struct ownership_copy_tag {
+		} ownership_copy;
+		slist() = default;
+		// Takes ownership
+		slist(curl_slist* raw, ownership_take_tag);
+		slist(const curl_slist* raw, ownership_copy_tag);
 		slist(const slist& other);
 		slist& operator=(const slist& other);
 		slist(slist&& other);
 		slist& operator=(slist&& other);
-        ~slist() noexcept { clear(); }
+		~slist() noexcept { clear(); }
 
 		slist_iterator append(const char* str);
 		slist_iterator prepend(const char* str);
 		slist_iterator insert(size_t index, const char* str);
-        slist_iterator insert_after(slist_iterator it, const char* str);
+		slist_iterator insert_after(slist_iterator it, const char* str);
 		void remove(size_t index);
-        void remove(slist_iterator it);
+		void remove(slist_iterator it);
 		void clear();
-        bool empty() const noexcept { return m_first_node == nullptr; }
+		bool empty() const noexcept { return m_first_node == nullptr; }
 
 		auto begin() const noexcept { return slist_iterator{m_first_node}; }
 		auto end() const noexcept { return slist_iterator{nullptr}; }
 	};
-} // namespace thalhammer::curlpp
+} // namespace asyncpp::curl

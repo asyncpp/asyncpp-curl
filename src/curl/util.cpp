@@ -73,7 +73,7 @@ namespace asyncpp::curl::util {
 	}
 
 	std::string base64url_decode(const std::string_view data) {
-		std::string d {data};
+		std::string d{data};
 		for (auto& e : d) {
 			if (e == '-')
 				e = '+';
