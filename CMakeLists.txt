@@ -1,5 +1,23 @@
-hunter_add_package(CURL)
-find_package(CURL CONFIG REQUIRED)
+cmake_minimum_required(VERSION 3.13)
+project(AsyncppCURL)
+
+find_package(Threads REQUIRED)
+if(HUNTER_ENABLED)
+    hunter_add_package(CURL)
+    find_package(CURL CONFIG REQUIRED)
+else()
+    find_package(CURL REQUIRED)
+endif()
+
+option(BUILD_TEST "Enable test builds" ON)
+option(WITH_ASAN "Enable asan for test builds" ON)
+
+if (TARGET asyncpp)
+    message(STATUS "Using existing asyncpp target.")
+else()
+    message(STATUS "Missing asyncpp, using Fetch to import it.")
+    include(cmake/Fetch_asyncpp.cmake)
+endif()
 
 add_library(asyncpp_curl
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/exception.cpp
@@ -13,6 +31,7 @@ target_link_libraries(asyncpp_curl PRIVATE asyncpp CURL::libcurl Threads::Thread
 target_include_directories(asyncpp_curl
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+target_compile_features(asyncpp_curl PUBLIC cxx_std_20)
 
 
 if(BUILD_TEST)
@@ -27,5 +46,12 @@ if(BUILD_TEST)
         ${CMAKE_CURRENT_SOURCE_DIR}/test/slist.cpp
     )
     target_link_libraries(asyncpp_curl-test PRIVATE asyncpp_curl GTest::GTest GTest::Main Threads::Threads)
+
+    if(WITH_ASAN)
+        message(STATUS "Building with asan enabled")
+        target_compile_options(asyncpp_curl-test PRIVATE -fsanitize=address)
+        target_link_libraries(asyncpp_curl-test PRIVATE asan)
+    endif()
+
     gtest_add_tests(TARGET asyncpp_curl-test)
 endif()

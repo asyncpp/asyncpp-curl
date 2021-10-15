@@ -3,11 +3,11 @@
 #include <string>
 
 namespace asyncpp::curl::util {
-	std::string escape(const std::string& in);
-	std::string unescape(const std::string& in);
-	bool equals_ignorecase(const std::string& a, const std::string& b);
+	std::string escape(const std::string_view in);
+	std::string unescape(const std::string_view in);
+	bool equals_ignorecase(const std::string_view a, const std::string_view b);
 	void get_random(void* buffer, size_t len);
-	bool starts_with_ignorecase(const std::string& a, const std::string& b);
+	bool starts_with_ignorecase(const std::string_view a, const std::string_view b);
 	std::string base64_encode(const std::string_view data);
 	std::string base64_decode(const std::string_view data);
 	std::string base64url_encode(const std::string_view data);

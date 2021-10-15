@@ -6,7 +6,8 @@
 #include <stdexcept>
 
 namespace asyncpp::curl::util {
-	std::string escape(const std::string& in) {
+
+	std::string escape(const std::string_view in) {
 		auto ptr = curl_easy_escape(nullptr, in.data(), in.size());
 		if (!ptr) throw std::bad_alloc{};
 		std::string res{ptr};
@@ -14,7 +15,7 @@ namespace asyncpp::curl::util {
 		return res;
 	}
 
-	std::string unescape(const std::string& in) {
+	std::string unescape(const std::string_view in) {
 		int size = -1;
 		auto ptr = curl_easy_unescape(nullptr, in.data(), in.size(), &size);
 		if (!ptr || size < 0) throw std::bad_alloc{};
@@ -23,7 +24,7 @@ namespace asyncpp::curl::util {
 		return res;
 	}
 
-	bool equals_ignorecase(const std::string& a, const std::string& b) {
+	bool equals_ignorecase(const std::string_view a, const std::string_view b) {
 		return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](char a, char b) { return tolower(a) == tolower(b); });
 	}
 
@@ -35,7 +36,7 @@ namespace asyncpp::curl::util {
 		std::generate(u8ptr, u8ptr + len, std::ref(bytes));
 	}
 
-	bool starts_with_ignorecase(const std::string& a, const std::string& b) {
+	bool starts_with_ignorecase(const std::string_view a, const std::string_view b) {
 		if (a.size() < b.size()) return false;
 		return equals_ignorecase(a.substr(0, b.size()), b);
 	}
