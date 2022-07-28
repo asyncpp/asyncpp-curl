@@ -1,14 +1,17 @@
 #include <asyncpp/curl/exception.h>
 #include <asyncpp/curl/handle.h>
 #include <asyncpp/curl/multi.h>
+#include <cstring>
 #include <curl/curl.h>
+#include <curl/multi.h>
+#include <mutex>
+#include <unistd.h>
 #if LIBCURL_VERSION_NUM < 0x074400
 #include <sys/eventfd.h>
-#include <unistd.h>
 #endif
 
 namespace asyncpp::curl {
-	multi::multi() : m_instance{nullptr}, m_wakeup{-1} {
+	multi::multi() : m_mtx{}, m_instance{nullptr}, m_wakeup{-1} {
 		// TODO: Needs a mutex
 		m_instance = curl_multi_init();
 		if (!m_instance) throw std::runtime_error("failed to create curl handle");
@@ -18,19 +21,16 @@ namespace asyncpp::curl {
 			curl_multi_cleanup(m_instance);
 			throw std::runtime_error("failed to create eventfd");
 		}
-#else
-		static_cast<void>(m_wakeup); // Silence the compiler
 #endif
 	}
 
 	multi::~multi() noexcept {
 		if (m_instance) curl_multi_cleanup(m_instance);
-#if LIBCURL_VERSION_NUM < 0x074400
-		close(m_wakeup);
-#endif
+		if (m_wakeup >= 0) close(m_wakeup);
 	}
 
 	void multi::add_handle(handle& hdl) {
+		std::scoped_lock lck{m_mtx, hdl.m_mtx};
 		if (hdl.m_multi == this) return;
 		if (hdl.m_multi != nullptr) throw std::logic_error("handle is already part of a multi");
 		auto res = curl_multi_add_handle(m_instance, hdl.raw());
@@ -39,6 +39,7 @@ namespace asyncpp::curl {
 	}
 
 	void multi::remove_handle(handle& hdl) {
+		std::scoped_lock lck{m_mtx, hdl.m_mtx};
 		if (hdl.m_multi == nullptr) return;
 		if (hdl.m_multi != this) throw std::logic_error("attempt to remove curl_handle from wrong multi");
 		auto res = curl_multi_remove_handle(m_instance, hdl.raw());
@@ -46,53 +47,42 @@ namespace asyncpp::curl {
 		hdl.m_multi = nullptr;
 	}
 
-	long multi::timeout() {
+	std::chrono::milliseconds multi::timeout() {
+		std::scoped_lock lck{m_mtx};
 		long timeout = -1;
 		auto res = curl_multi_timeout(m_instance, &timeout);
 		if (res != CURLM_OK) throw exception{res, true};
-		return timeout;
+		return std::chrono::milliseconds{timeout};
 	}
 
 	void multi::perform(int* still_running) {
+		std::scoped_lock lck{m_mtx};
 		auto res = curl_multi_perform(m_instance, still_running);
 		if (res != CURLM_OK) throw exception{res, true};
 	}
 
-	void multi::wait(std::span<int> extra_fds, int timeout_ms, int* num_fds) {
-		curl_waitfd extra[extra_fds.size()];
-		for (size_t i = 0; i < extra_fds.size(); i++) {
-			extra[i].fd = extra_fds[i];
-			extra[i].events = CURL_WAIT_POLLIN | CURL_WAIT_POLLPRI | CURL_WAIT_POLLOUT;
-			extra[i].revents = 0;
-		}
-		auto res = curl_multi_wait(m_instance, extra, extra_fds.size(), timeout_ms, num_fds);
+	void multi::wait(std::span<curl_waitfd> extra_fds, int timeout_ms, int* num_fds) {
+		std::scoped_lock lck{m_mtx};
+		auto res = curl_multi_wait(m_instance, extra_fds.data(), extra_fds.size(), timeout_ms, num_fds);
 		if (res != CURLM_OK) throw exception{res, true};
 	}
 
-	void multi::poll(std::span<int> extra_fds, int timeout_ms, int* num_fds) {
+	void multi::poll(std::span<curl_waitfd> extra_fds, int timeout_ms, int* num_fds) {
 #if LIBCURL_VERSION_NUM < 0x074400
 		curl_waitfd extra[extra_fds.size() + 1];
-		for (size_t i = 0; i < extra_fds.size(); i++) {
-			extra[i].fd = extra_fds[i];
-			extra[i].events = CURL_WAIT_POLLIN | CURL_WAIT_POLLPRI | CURL_WAIT_POLLOUT;
-			extra[i].revents = 0;
-		}
+		memcpy(extra, extra_fds.data(), extra_fds.size_bytes());
 		extra[extra_fds.size()].fd = m_wakeup;
 		extra[extra_fds.size()].events = CURL_WAIT_POLLIN;
 		extra[extra_fds.size()].revents = 0;
+		std::scoped_lock lck{m_mtx};
 		auto res = curl_multi_wait(m_instance, extra, extra_fds.size() + 1, timeout_ms, num_fds);
 		if (res != CURLM_OK) throw exception{res, true};
 		uint64_t temp;
 		auto unused = read(m_wakeup, &temp, sizeof(temp));
 		static_cast<void>(unused); // We dont care about the result
 #else
-		curl_waitfd extra[extra_fds.size()];
-		for (size_t i = 0; i < extra_fds.size(); i++) {
-			extra[i].fd = extra_fds[i];
-			extra[i].events = CURL_WAIT_POLLIN | CURL_WAIT_POLLPRI | CURL_WAIT_POLLOUT;
-			extra[i].revents = 0;
-		}
-		auto res = curl_multi_poll(m_instance, extra, extra_fds.size(), timeout_ms, num_fds);
+		std::scoped_lock lck{m_mtx};
+		auto res = curl_multi_poll(m_instance, extra_fds.data(), extra_fds.size(), timeout_ms, num_fds);
 		if (res != CURLM_OK) throw exception{res, true};
 #endif
 	}
@@ -108,7 +98,14 @@ namespace asyncpp::curl {
 #endif
 	}
 
+	void multi::fdset(fd_set& read_set, fd_set& write_set, fd_set& exc_set, int& max_fd) {
+		std::scoped_lock lck{m_mtx};
+		auto res = curl_multi_fdset(m_instance, &read_set, &write_set, &exc_set, &max_fd);
+		if (res != CURLM_OK) throw exception{res, true};
+	}
+
 	bool multi::next_event(event& evt) {
+		std::scoped_lock lck{m_mtx};
 		int msgs_in_queue = -1;
 		auto ptr = curl_multi_info_read(m_instance, &msgs_in_queue);
 		if (ptr) {
@@ -121,16 +118,19 @@ namespace asyncpp::curl {
 	}
 
 	void multi::set_option_long(int opt, long val) {
+		std::scoped_lock lck{m_mtx};
 		auto res = curl_multi_setopt(m_instance, static_cast<CURLMoption>(opt), val);
 		if (res != CURLM_OK) throw exception{res, true};
 	}
 
 	void multi::set_option_ptr(int opt, const void* str) {
+		std::scoped_lock lck{m_mtx};
 		auto res = curl_multi_setopt(m_instance, static_cast<CURLMoption>(opt), str);
 		if (res != CURLM_OK) throw exception{res, true};
 	}
 
 	void multi::set_option_bool(int opt, bool on) {
+		std::scoped_lock lck{m_mtx};
 		auto res = curl_multi_setopt(m_instance, static_cast<CURLMoption>(opt), static_cast<long>(on ? 1 : 0));
 		if (res != CURLM_OK) throw exception{res, true};
 	}

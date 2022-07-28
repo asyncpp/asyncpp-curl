@@ -20,14 +20,16 @@ else()
 endif()
 
 add_library(asyncpp_curl
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/exception.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/base64.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/executor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/handle.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/multi.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/slist.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/util.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/uri.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/webclient.cpp
 )
-target_link_libraries(asyncpp_curl PRIVATE asyncpp CURL::libcurl Threads::Threads)
+target_link_libraries(asyncpp_curl PUBLIC asyncpp)
+target_link_libraries(asyncpp_curl PRIVATE CURL::libcurl Threads::Threads)
 target_include_directories(asyncpp_curl
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
@@ -43,7 +45,11 @@ if(BUILD_TEST)
     find_package(GTest REQUIRED)
 
     add_executable(asyncpp_curl-test
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/base64.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/cookie.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/test/slist.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/uri.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/webclient.cpp
     )
     target_link_libraries(asyncpp_curl-test PRIVATE asyncpp_curl GTest::GTest GTest::Main Threads::Threads)
 

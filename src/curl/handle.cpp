@@ -6,33 +6,16 @@
 #include <curl/curl.h>
 #include <istream>
 #include <ostream>
+#include <stdexcept>
 
 namespace asyncpp::curl {
 	handle::handle() : m_instance{nullptr}, m_multi{nullptr}, m_pause_state{0} {
-		// TODO: Needs a mutex
 		m_instance = curl_easy_init();
 		if (!m_instance) throw std::runtime_error("failed to create curl handle");
 		set_option_ptr(CURLOPT_PRIVATE, this);
+		// We set CURLOPT_NOSIGNAL to avoid errors in MT, this is fine in most cases.
+		set_option_bool(CURLOPT_NOSIGNAL, true);
 	}
-
-	//handle::handle(const handle& other)
-	//    : m_instance{curl_easy_duphandle(other.m_instance)}, m_multi{nullptr}
-	//{
-	//    if(!m_instance) throw std::runtime_error("failed to copy handle");
-	//    set_option_ptr(CURLOPT_PRIVATE, this);
-	//}
-
-	//handle& handle::operator=(const handle& other)
-	//{
-	//    if(m_multi) m_multi->remove_handle(*this);
-	//    auto hdl = curl_easy_duphandle(other.m_instance);
-	//    if(!hdl) throw std::runtime_error("failed to copy handle");
-	//    if(m_instance)
-	//        curl_easy_cleanup(m_instance);
-	//    m_instance = hdl;
-	//    set_option_ptr(CURLOPT_PRIVATE, this);
-	//    return *this;
-	//}
 
 	handle::~handle() noexcept {
 		if (m_multi) m_multi->remove_handle(*this);
@@ -40,23 +23,56 @@ namespace asyncpp::curl {
 	}
 
 	void handle::set_option_long(int opt, long val) {
+		// TODO: Evaluate curl_easy_option_by_id for checking
+		if (int base = (opt / 10000) * 10000; base != CURLOPTTYPE_LONG) throw std::invalid_argument("invalid option supplied to set_option_long");
+		std::scoped_lock lck{m_mtx};
 		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), val);
 		if (res != CURLE_OK) throw exception{res};
 	}
 
-	void handle::set_option_ptr(int opt, const void* str) {
+	void handle::set_option_offset(int opt, long val) {
+		// TODO: Evaluate curl_easy_option_by_id for checking
+		if (int base = (opt / 10000) * 10000; base != CURLOPTTYPE_OFF_T) throw std::invalid_argument("invalid option supplied to set_option_long");
+		std::scoped_lock lck{m_mtx};
+		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), static_cast<curl_off_t>(val));
+		if (res != CURLE_OK) throw exception{res};
+	}
+
+	void handle::set_option_ptr(int opt, const void* ptr) {
+		// TODO: Evaluate curl_easy_option_by_id for checking
+		if (int base = (opt / 10000) * 10000; base != CURLOPTTYPE_OBJECTPOINT && base != CURLOPTTYPE_FUNCTIONPOINT)
+			throw std::invalid_argument("invalid option supplied to set_option_ptr");
+		std::scoped_lock lck{m_mtx};
+		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), ptr);
+		if (res != CURLE_OK) throw exception{res};
+	}
+
+	void handle::set_option_string(int opt, const char* str) {
+		// TODO: Evaluate curl_easy_option_by_id for checking
+		if (int base = (opt / 10000) * 10000; base != CURLOPTTYPE_STRINGPOINT) throw std::invalid_argument("invalid option supplied to set_option_ptr");
+		std::scoped_lock lck{m_mtx};
 		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), str);
 		if (res != CURLE_OK) throw exception{res};
 	}
 
-	void handle::set_option_bool(int opt, bool on) {
-		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), static_cast<long>(on ? 1 : 0));
+	void handle::set_option_blob(int opt, void* data, size_t data_size, bool copy) {
+		// TODO: Evaluate curl_easy_option_by_id for checking
+		if (int base = (opt / 10000) * 10000; base != CURLOPTTYPE_BLOB) throw std::invalid_argument("invalid option supplied to set_option_blob");
+		curl_blob b{.data = data, .len = data_size, .flags = static_cast<unsigned int>(copy ? CURL_BLOB_COPY : CURL_BLOB_NOCOPY)};
+		std::scoped_lock lck{m_mtx};
+		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), &b);
 		if (res != CURLE_OK) throw exception{res};
 	}
 
-	void handle::set_option_slist(int opt, const slist& list) {
+	void handle::set_option_bool(int opt, bool on) { set_option_long(opt, static_cast<long>(on ? 1 : 0)); }
+
+	void handle::set_option_slist(int opt, slist list) {
+		// TODO: Evaluate curl_easy_option_by_id for checking
+		if (int base = (opt / 10000) * 10000; base != CURLOPTTYPE_SLISTPOINT) throw std::invalid_argument("invalid option supplied to set_option_ptr");
+		std::scoped_lock lck{m_mtx};
 		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), list.m_first_node);
 		if (res != CURLE_OK) throw exception{res};
+		m_owned_slists[opt] = std::move(list);
 	}
 
 	void handle::set_url(const char* url) { set_option_ptr(CURLOPT_URL, url); }
@@ -67,16 +83,18 @@ namespace asyncpp::curl {
 
 	void handle::set_verbose(bool on) { set_option_bool(CURLOPT_VERBOSE, on); }
 
-	void handle::set_headers(const slist& list) { set_option_slist(CURLOPT_HTTPHEADER, list); }
+	void handle::set_headers(slist list) { set_option_slist(CURLOPT_HTTPHEADER, std::move(list)); }
 
 	void handle::set_writefunction(std::function<size_t(char* ptr, size_t size)> cb) {
+		constexpr curl_write_callback real_cb = [](char* buffer, size_t size, size_t nmemb, void* udata) -> size_t {
+			auto res = static_cast<handle*>(udata)->m_write_callback(buffer, size * nmemb);
+			if (res == CURL_WRITEFUNC_PAUSE) static_cast<handle*>(udata)->m_pause_state |= CURLPAUSE_RECV;
+			return res;
+		};
+
+		std::scoped_lock lck{m_mtx};
 		m_write_callback = cb;
-		auto res = curl_easy_setopt(m_instance, CURLOPT_WRITEFUNCTION,
-									static_cast<curl_read_callback>([](char* buffer, size_t size, size_t nmemb, void* udata) -> size_t {
-										auto res = static_cast<handle*>(udata)->m_write_callback(buffer, size * nmemb);
-										if (res == CURL_WRITEFUNC_PAUSE) static_cast<handle*>(udata)->m_pause_state |= CURLPAUSE_RECV;
-										return res;
-									}));
+		auto res = curl_easy_setopt(m_instance, CURLOPT_WRITEFUNCTION, real_cb);
 		if (res != CURLE_OK) throw exception{res};
 		set_option_ptr(CURLOPT_WRITEDATA, this);
 	}
@@ -98,13 +116,15 @@ namespace asyncpp::curl {
 	}
 
 	void handle::set_readfunction(std::function<size_t(char* ptr, size_t size)> cb) {
+		curl_read_callback real_cb = [](char* buffer, size_t size, size_t nmemb, void* udata) -> size_t {
+			auto res = static_cast<handle*>(udata)->m_read_callback(buffer, size * nmemb);
+			if (res == CURL_READFUNC_PAUSE) static_cast<handle*>(udata)->m_pause_state |= CURLPAUSE_SEND;
+			return res;
+		};
+
+		std::scoped_lock lck{m_mtx};
 		m_read_callback = cb;
-		auto res = curl_easy_setopt(m_instance, CURLOPT_READFUNCTION,
-									static_cast<curl_read_callback>([](char* buffer, size_t size, size_t nmemb, void* udata) -> size_t {
-										auto res = static_cast<handle*>(udata)->m_read_callback(buffer, size * nmemb);
-										if (res == CURL_READFUNC_PAUSE) static_cast<handle*>(udata)->m_pause_state |= CURLPAUSE_SEND;
-										return res;
-									}));
+		auto res = curl_easy_setopt(m_instance, CURLOPT_READFUNCTION, real_cb);
 		if (res != CURLE_OK) throw exception{res};
 		set_option_ptr(CURLOPT_READDATA, this);
 	}
@@ -129,29 +149,33 @@ namespace asyncpp::curl {
 	}
 
 	void handle::set_progressfunction(std::function<int(int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow)> cb) {
+		constexpr curl_xferinfo_callback real_cb = [](void* udata, int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow) -> int {
+			return static_cast<handle*>(udata)->m_progress_callback(dltotal, dlnow, ultotal, ulnow);
+		};
+
+		std::scoped_lock lck{m_mtx};
 		m_progress_callback = cb;
-		auto res =
-			curl_easy_setopt(m_instance, CURLOPT_XFERINFOFUNCTION, [](void* udata, int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow) -> int {
-				return static_cast<handle*>(udata)->m_progress_callback(dltotal, dlnow, ultotal, ulnow);
-			});
+		auto res = curl_easy_setopt(m_instance, CURLOPT_XFERINFOFUNCTION, real_cb);
 		if (res != CURLE_OK) throw exception{res};
 		set_option_ptr(CURLOPT_XFERINFODATA, this);
 		set_option_bool(CURLOPT_NOPROGRESS, false);
 	}
 
 	void handle::set_headerfunction(std::function<size_t(char* buffer, size_t size)> cb) {
+		constexpr curl_read_callback real_cb = [](char* buffer, size_t size, size_t nmemb, void* udata) -> size_t {
+			return static_cast<handle*>(udata)->m_header_callback(buffer, size * nmemb);
+		};
+
+		std::scoped_lock lck{m_mtx};
 		m_header_callback = cb;
-		auto res = curl_easy_setopt(m_instance, CURLOPT_HEADERFUNCTION,
-									static_cast<curl_read_callback>([](char* buffer, size_t size, size_t nmemb, void* udata) -> size_t {
-										return static_cast<handle*>(udata)->m_header_callback(buffer, size * nmemb);
-									}));
+		auto res = curl_easy_setopt(m_instance, CURLOPT_HEADERFUNCTION, real_cb);
 		if (res != CURLE_OK) throw exception{res};
 		set_option_ptr(CURLOPT_HEADERDATA, this);
 	}
 
 	void handle::set_headerfunction_slist(slist& list) {
 		set_headerfunction([&list](char* buffer, size_t size) -> size_t {
-			if (size == 0) return 0;
+			if (size == 0 || size == 1) return size;
 			// A complete HTTP header [...] includes the final line terminator.
 			// We temporarily replace it with a null character for append.
 			// This saves us from having to copy the string.
@@ -171,20 +195,56 @@ namespace asyncpp::curl {
 	void handle::set_donefunction(std::function<void(int result)> cb) { m_done_callback = cb; }
 
 	void handle::perform() {
-		if (m_multi) throw std::logic_error("performed called on handle in multi");
+		std::scoped_lock lck{m_mtx};
+		if (m_multi) throw std::logic_error("perform called on handle in multi");
 		auto res = curl_easy_perform(m_instance);
 		if (m_done_callback) m_done_callback(res);
 		if (res != CURLE_OK) throw exception{res};
 	}
 
 	void handle::reset() {
+		std::scoped_lock lck{m_mtx};
 		if (m_multi) m_multi->remove_handle(*this);
 		m_done_callback = {};
 		curl_easy_reset(m_instance);
 		set_option_ptr(CURLOPT_PRIVATE, this);
+		m_done_callback = {};
+		m_header_callback = {};
+		m_progress_callback = {};
+		m_read_callback = {};
+		m_write_callback = {};
+		m_pause_state = 0;
+		m_owned_slists.clear();
+	}
+
+	void handle::upkeep() {
+#if LIBCURL_VERSION_NUM >= 0x073E00
+		std::scoped_lock lck{m_mtx};
+		auto res = curl_easy_upkeep(m_instance);
+		if (res != CURLE_OK) throw exception{res};
+#endif
+	}
+
+	ssize_t handle::recv(void* buffer, size_t buflen) {
+		std::scoped_lock lck{m_mtx};
+		size_t read{};
+		auto res = curl_easy_recv(m_instance, buffer, buflen, &read);
+		if (res == CURLE_AGAIN) return -1;
+		if (res != CURLE_OK) throw exception{res};
+		return read;
+	}
+
+	ssize_t handle::send(const void* buffer, size_t buflen) {
+		std::scoped_lock lck{m_mtx};
+		size_t sent{};
+		auto res = curl_easy_send(m_instance, buffer, buflen, &sent);
+		if (res == CURLE_AGAIN) return -1;
+		if (res != CURLE_OK) throw exception{res};
+		return sent;
 	}
 
 	void handle::pause(int dirs) {
+		std::scoped_lock lck{m_mtx};
 		auto old = m_pause_state;
 		m_pause_state |= (dirs & CURLPAUSE_ALL);
 		if (m_pause_state == old) return;
@@ -192,15 +252,21 @@ namespace asyncpp::curl {
 	}
 
 	void handle::unpause(int dirs) {
+		std::scoped_lock lck{m_mtx};
 		auto old = m_pause_state;
 		m_pause_state &= ~(dirs & CURLPAUSE_ALL);
 		if (m_pause_state == old) return;
 		curl_easy_pause(m_instance, m_pause_state);
 	}
 
-	bool handle::is_paused(int dir) { return (m_pause_state & dir) != 0; }
+	bool handle::is_paused(int dir) {
+		std::scoped_lock lck{m_mtx};
+		return (m_pause_state & dir) != 0;
+	}
 
 	long handle::get_info_long(int info) const {
+		if ((info & CURLINFO_TYPEMASK) != CURLINFO_LONG) throw std::invalid_argument("invalid info supplied to get_info_long");
+		std::scoped_lock lck{m_mtx};
 		long p;
 		auto res = curl_easy_getinfo(m_instance, static_cast<CURLINFO>(info), &p);
 		if (res != CURLE_OK) throw exception{res};
@@ -208,6 +274,8 @@ namespace asyncpp::curl {
 	}
 
 	double handle::get_info_double(int info) const {
+		if ((info & CURLINFO_TYPEMASK) != CURLINFO_DOUBLE) throw std::invalid_argument("invalid info supplied to get_info_double");
+		std::scoped_lock lck{m_mtx};
 		double p;
 		auto res = curl_easy_getinfo(m_instance, static_cast<CURLINFO>(info), &p);
 		if (res != CURLE_OK) throw exception{res};
@@ -215,10 +283,21 @@ namespace asyncpp::curl {
 	}
 
 	const char* handle::get_info_string(int info) const {
+		if ((info & CURLINFO_TYPEMASK) != CURLINFO_STRING) throw std::invalid_argument("invalid info supplied to get_info_string");
+		std::scoped_lock lck{m_mtx};
 		char* p;
 		auto res = curl_easy_getinfo(m_instance, static_cast<CURLINFO>(info), &p);
 		if (res != CURLE_OK) throw exception{res};
 		return p;
+	}
+
+	slist handle::get_info_slist(int info) const {
+		if ((info & CURLINFO_TYPEMASK) != CURLINFO_SLIST) throw std::invalid_argument("invalid info supplied to get_info_slist");
+		std::scoped_lock lck{m_mtx};
+		struct curl_slist* p;
+		auto res = curl_easy_getinfo(m_instance, static_cast<CURLINFO>(info), &p);
+		if (res != CURLE_OK) throw exception{res};
+		return slist{p, slist::ownership_take};
 	}
 
 	long handle::get_response_code() const { return get_info_long(CURLINFO_RESPONSE_CODE); }
