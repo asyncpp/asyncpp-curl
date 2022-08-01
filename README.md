@@ -1,6 +1,6 @@
 # Async++ CURL library
 This library provides a c++ wrapper around libcurl supporting async usage with c++20 coroutines.
-It is an addition to async++ which provides general coroutine tasks and support classes.
+It is an addition to [async++](https://github.com/Thalhammer/asyncpp) which provides general coroutine tasks and support classes.
 
 Tested and supported compilers:
 * Clang 12
