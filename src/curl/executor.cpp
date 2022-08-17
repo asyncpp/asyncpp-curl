@@ -2,9 +2,6 @@
 #include <asyncpp/curl/handle.h>
 #include <future>
 
-namespace asyncpp {
-	extern thread_local dispatcher* g_this_dispatcher;
-}
 namespace asyncpp::curl {
 	executor::executor() : m_multi{}, m_thread{}, m_mtx{}, m_exit{false}, m_queue{} {
 		m_thread = std::thread([this]() { this->worker_thread(); });
@@ -17,7 +14,7 @@ namespace asyncpp::curl {
 	}
 
 	void executor::worker_thread() noexcept {
-		g_this_dispatcher = this;
+		dispatcher::current(this);
 		while (true) {
 			int still_running = 0;
 			{
@@ -63,7 +60,7 @@ namespace asyncpp::curl {
 			}
 			m_multi.poll({}, timeout, nullptr);
 		}
-		g_this_dispatcher = nullptr;
+		dispatcher::current(nullptr);
 	}
 
 	void executor::add_handle(handle& hdl) {
