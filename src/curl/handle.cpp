@@ -1,15 +1,22 @@
 #include <asyncpp/curl/exception.h>
+#include <asyncpp/curl/executor.h>
 #include <asyncpp/curl/handle.h>
 #include <asyncpp/curl/multi.h>
 #include <asyncpp/curl/slist.h>
 #include <cstring>
 #include <curl/curl.h>
 #include <istream>
+#include <mutex>
 #include <ostream>
 #include <stdexcept>
 
 namespace asyncpp::curl {
-	handle::handle() : m_instance{nullptr}, m_multi{nullptr}, m_pause_state{0} {
+	constexpr static uint32_t FLAG_is_connect_only = 1 << 1;
+	static_assert((FLAG_is_connect_only & CURLPAUSE_ALL) == 0, "Overlap between custom flags and CURLPAUSE_ALL");
+	constexpr static uint32_t FLAG_is_verbose = 1 << 3;
+	static_assert((FLAG_is_verbose & CURLPAUSE_ALL) == 0, "Overlap between custom flags and CURLPAUSE_ALL");
+
+	handle::handle() : m_instance{nullptr}, m_multi{nullptr}, m_executor{nullptr}, m_flags{0} {
 		m_instance = curl_easy_init();
 		if (!m_instance) throw std::runtime_error("failed to create curl handle");
 		set_option_ptr(CURLOPT_PRIVATE, this);
@@ -18,6 +25,7 @@ namespace asyncpp::curl {
 	}
 
 	handle::~handle() noexcept {
+		if (m_executor) m_executor->remove_handle(*this);
 		if (m_multi) m_multi->remove_handle(*this);
 		if (m_instance) curl_easy_cleanup(m_instance);
 	}
@@ -28,6 +36,8 @@ namespace asyncpp::curl {
 		std::scoped_lock lck{m_mtx};
 		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), val);
 		if (res != CURLE_OK) throw exception{res};
+		if (opt == CURLOPT_CONNECT_ONLY) m_flags = val ? (m_flags | FLAG_is_connect_only) : (m_flags & ~FLAG_is_connect_only);
+		else if (opt == CURLOPT_VERBOSE) m_flags = val ? (m_flags | FLAG_is_verbose) : (m_flags & ~FLAG_is_verbose);
 	}
 
 	void handle::set_option_offset(int opt, long val) {
@@ -88,7 +98,7 @@ namespace asyncpp::curl {
 	void handle::set_writefunction(std::function<size_t(char* ptr, size_t size)> cb) {
 		constexpr curl_write_callback real_cb = [](char* buffer, size_t size, size_t nmemb, void* udata) -> size_t {
 			auto res = static_cast<handle*>(udata)->m_write_callback(buffer, size * nmemb);
-			if (res == CURL_WRITEFUNC_PAUSE) static_cast<handle*>(udata)->m_pause_state |= CURLPAUSE_RECV;
+			if (res == CURL_WRITEFUNC_PAUSE) static_cast<handle*>(udata)->m_flags |= CURLPAUSE_RECV;
 			return res;
 		};
 
@@ -118,7 +128,7 @@ namespace asyncpp::curl {
 	void handle::set_readfunction(std::function<size_t(char* ptr, size_t size)> cb) {
 		curl_read_callback real_cb = [](char* buffer, size_t size, size_t nmemb, void* udata) -> size_t {
 			auto res = static_cast<handle*>(udata)->m_read_callback(buffer, size * nmemb);
-			if (res == CURL_READFUNC_PAUSE) static_cast<handle*>(udata)->m_pause_state |= CURLPAUSE_SEND;
+			if (res == CURL_READFUNC_PAUSE) static_cast<handle*>(udata)->m_flags |= CURLPAUSE_SEND;
 			return res;
 		};
 
@@ -192,20 +202,25 @@ namespace asyncpp::curl {
 		});
 	}
 
-	void handle::set_donefunction(std::function<void(int result)> cb) { m_done_callback = cb; }
+	void handle::set_donefunction(std::function<void(int result)> cb) {
+		std::scoped_lock lck{m_mtx};
+		m_done_callback = cb;
+	}
 
 	void handle::perform() {
-		std::scoped_lock lck{m_mtx};
+		std::unique_lock lck{m_mtx};
 		if (m_multi) throw std::logic_error("perform called on handle in multi");
 		auto res = curl_easy_perform(m_instance);
-		if (m_done_callback) m_done_callback(res);
+		auto cb = m_done_callback;
+		lck.unlock();
+		if (cb) cb(res);
 		if (res != CURLE_OK) throw exception{res};
 	}
 
 	void handle::reset() {
-		std::scoped_lock lck{m_mtx};
+		if (m_executor) m_executor->remove_handle(*this);
 		if (m_multi) m_multi->remove_handle(*this);
-		m_done_callback = {};
+		std::scoped_lock lck{m_mtx};
 		curl_easy_reset(m_instance);
 		set_option_ptr(CURLOPT_PRIVATE, this);
 		m_done_callback = {};
@@ -213,7 +228,7 @@ namespace asyncpp::curl {
 		m_progress_callback = {};
 		m_read_callback = {};
 		m_write_callback = {};
-		m_pause_state = 0;
+		m_flags = 0;
 		m_owned_slists.clear();
 	}
 
@@ -243,25 +258,38 @@ namespace asyncpp::curl {
 		return sent;
 	}
 
+	bool handle::is_connect_only() const noexcept {
+		std::scoped_lock lck{m_mtx};
+		return m_flags & FLAG_is_connect_only;
+	}
+
+	bool handle::is_verbose() const noexcept {
+		std::scoped_lock lck{m_mtx};
+		return m_flags & FLAG_is_verbose;
+	}
+
 	void handle::pause(int dirs) {
 		std::scoped_lock lck{m_mtx};
-		auto old = m_pause_state;
-		m_pause_state |= (dirs & CURLPAUSE_ALL);
-		if (m_pause_state == old) return;
-		curl_easy_pause(m_instance, m_pause_state);
+		auto old = m_flags;
+		m_flags |= (dirs & CURLPAUSE_ALL);
+		if (m_flags == old) return;
+		curl_easy_pause(m_instance, m_flags & CURLPAUSE_ALL);
 	}
 
 	void handle::unpause(int dirs) {
-		std::scoped_lock lck{m_mtx};
-		auto old = m_pause_state;
-		m_pause_state &= ~(dirs & CURLPAUSE_ALL);
-		if (m_pause_state == old) return;
-		curl_easy_pause(m_instance, m_pause_state);
+		std::unique_lock lck{m_mtx};
+		auto old = m_flags;
+		m_flags &= ~(dirs & CURLPAUSE_ALL);
+		if (m_flags == old) return;
+		curl_easy_pause(m_instance, m_flags & CURLPAUSE_ALL);
+		// Wake the executor/multi if theres any to make sure it gets polled soon
+		if(m_executor) m_executor->wakeup();
+		else if(m_multi) m_multi->wakeup();
 	}
 
 	bool handle::is_paused(int dir) {
 		std::scoped_lock lck{m_mtx};
-		return (m_pause_state & dir) != 0;
+		return (m_flags & dir) != 0;
 	}
 
 	long handle::get_info_long(int info) const {
@@ -270,6 +298,16 @@ namespace asyncpp::curl {
 		long p;
 		auto res = curl_easy_getinfo(m_instance, static_cast<CURLINFO>(info), &p);
 		if (res != CURLE_OK) throw exception{res};
+		return p;
+	}
+
+	uint64_t handle::get_info_socket(int info) const {
+		if ((info & CURLINFO_TYPEMASK) != CURLINFO_SOCKET) throw std::invalid_argument("invalid info supplied to get_info_socket");
+		std::scoped_lock lck{m_mtx};
+		curl_socket_t p;
+		auto res = curl_easy_getinfo(m_instance, static_cast<CURLINFO>(info), &p);
+		if (res != CURLE_OK) throw exception{res};
+		if (p == CURL_SOCKET_BAD) return std::numeric_limits<uint64_t>::max();
 		return p;
 	}
 

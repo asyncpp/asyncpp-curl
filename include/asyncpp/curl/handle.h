@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -17,13 +18,14 @@ namespace asyncpp::curl {
 		mutable std::recursive_mutex m_mtx;
 		void* m_instance;
 		multi* m_multi;
+		executor* m_executor;
 		std::function<void(int result)> m_done_callback{};
 		std::function<size_t(char* buffer, size_t size)> m_header_callback{};
 		std::function<size_t(int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow)> m_progress_callback{};
 		std::function<size_t(char* buffer, size_t size)> m_read_callback{};
 		std::function<size_t(char* buffer, size_t size)> m_write_callback{};
-		int m_pause_state;
 		std::map<int, slist> m_owned_slists;
+		uint32_t m_flags;
 
 		friend class multi;
 		friend class executor;
@@ -121,6 +123,7 @@ namespace asyncpp::curl {
 		 * \note ptr points to a block os size bytes without zero termination.
 		 * \note The function can return CURL_WRITEFUNC_PAUSE to pause the transfer.
 		 * \note If the value returned differs from size the transfer is aborted with CURLE_WRITE_ERROR.
+		 * \note If the handle uses CURLOPT_CONNECT_ONLY and passed to a executor instance this function gets invoked with nullptr when the socket is readable.
 		 */
 		void set_writefunction(std::function<size_t(char* ptr, size_t size)> cb);
 		/**
@@ -142,6 +145,7 @@ namespace asyncpp::curl {
 		 * \note ptr points to a block os size bytes without zero termination.
 		 * \note The function can return CURL_READFUNC_PAUSE to pause the transfer or CURL_READFUNC_ABORT to abort.
 		 * \note The function shall return the number of bytes stored in ptr or 0 to signal EOF.
+		 * \note If the handle uses CURLOPT_CONNECT_ONLY and passed to a executor instance this function gets invoked with nullptr when the socket is writable.
 		 */
 		void set_readfunction(std::function<size_t(char* ptr, size_t size)> cb);
 		/**
@@ -217,6 +221,16 @@ namespace asyncpp::curl {
 		 *			- 0 if the connection was closed
 		 */
 		ssize_t send(const void* buffer, size_t buflen);
+		/**
+		 * \brief Check if this handle has the CURLOPT_CONNECT_ONLY option set.
+		 *	If this option is set the handle wont be automatically removed
+		 *	from a executor when the done callback is executed.
+		 */
+		bool is_connect_only() const noexcept;
+		/**
+		 * \brief Check if this handle has the CURLOPT_VERBOSE option set.
+		 */
+		bool is_verbose() const noexcept;
 
 		/**
 		 * \brief Pause the transfer.
@@ -243,6 +257,12 @@ namespace asyncpp::curl {
 		 * \return The requested info
 		 */
 		long get_info_long(int info) const;
+		/**
+		 * \brief Get a info element of type socket
+		 * \param info The id of the info to get
+		 * \return The requested socket
+		 */
+		uint64_t get_info_socket(int info) const;
 		/**
 		 * \brief Get a info element of type double
 		 * \param info The id of the info to get

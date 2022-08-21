@@ -86,7 +86,7 @@ namespace asyncpp::curl {
 
 		void set_read_cb(handle& hdl, http_request::body_provider_t body_provider) {
 			if (std::holds_alternative<http_request::no_body>(body_provider)) {
-				hdl.set_readfunction([](char*, size_t size) -> size_t { return 0; });
+				hdl.set_readfunction([](char*, size_t) -> size_t { return 0; });
 			} else if (std::holds_alternative<const std::string*>(body_provider)) {
 				hdl.set_option_bool(CURLOPT_POST, true);
 				hdl.set_option_long(CURLOPT_POSTFIELDSIZE_LARGE, std::get<const std::string*>(body_provider)->size());

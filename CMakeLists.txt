@@ -21,10 +21,12 @@ endif()
 
 add_library(asyncpp_curl
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/base64.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/exception.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/executor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/handle.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/multi.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/slist.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/tcp_client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/uri.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/webclient.cpp
 )
@@ -48,6 +50,7 @@ if(BUILD_TEST)
         ${CMAKE_CURRENT_SOURCE_DIR}/test/base64.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/test/cookie.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/test/slist.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/tcp_client.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/test/uri.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/test/webclient.cpp
     )

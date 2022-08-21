@@ -1,6 +1,9 @@
 #include <asyncpp/curl/executor.h>
 #include <asyncpp/curl/handle.h>
+#include <curl/curl.h>
+#include <curl/multi.h>
 #include <future>
+#include <stdexcept>
 
 namespace asyncpp::curl {
 	executor::executor() : m_multi{}, m_thread{}, m_mtx{}, m_exit{false}, m_queue{} {
@@ -15,6 +18,8 @@ namespace asyncpp::curl {
 
 	void executor::worker_thread() noexcept {
 		dispatcher::current(this);
+		std::vector<curl_waitfd> fds;
+		std::vector<handle*> handles;
 		while (true) {
 			int still_running = 0;
 			{
@@ -25,7 +30,7 @@ namespace asyncpp::curl {
 					if (evt.handle->m_done_callback) {
 						m_queue.emplace([cb = evt.handle->m_done_callback, res = evt.result_code]() { cb(res); });
 					}
-					if (evt.code == multi::event_code::done) m_multi.remove_handle(*evt.handle);
+					if (evt.code == multi::event_code::done && !evt.handle->is_connect_only()) m_multi.remove_handle(*evt.handle);
 				}
 			}
 			while (true) {
@@ -58,20 +63,58 @@ namespace asyncpp::curl {
 					}
 				}
 			}
-			m_multi.poll({}, timeout, nullptr);
+			{
+				auto num_handles = m_connect_only_handles.size();
+				fds.resize(num_handles);
+				handles.resize(num_handles);
+				for (size_t i = 0; auto e : m_connect_only_handles) {
+					auto fd = e->get_info_socket(CURLINFO_ACTIVESOCKET);
+					fds[i].events = e->is_paused(CURLPAUSE_RECV) ? 0 : (CURL_WAIT_POLLIN | CURL_WAIT_POLLPRI);
+					fds[i].events |= e->is_paused(CURLPAUSE_SEND) ? 0 : CURL_WAIT_POLLOUT;
+					if (fd == std::numeric_limits<uint64_t>::max() || fds[i].events == 0) {
+						num_handles--;
+						continue;
+					}
+					fds[i].fd = fd;
+					fds[i].revents = 0;
+					handles[i] = e;
+					i++;
+				}
+				int num_fds = 0;
+				m_multi.poll({fds.data(), num_handles}, timeout, &num_fds);
+				if (num_fds != 0) {
+					for (size_t i = 0; i < num_handles; i++) {
+						if (fds[i].revents & CURL_WAIT_POLLIN) {
+							if (!handles[i]->m_write_callback || handles[i]->m_write_callback(nullptr, 0) == CURL_WRITEFUNC_PAUSE)
+								handles[i]->pause(CURLPAUSE_RECV);
+						} else if (fds[i].revents & CURL_WAIT_POLLOUT) {
+							if (!handles[i]->m_read_callback || handles[i]->m_read_callback(nullptr, 0) == CURL_READFUNC_PAUSE)
+								handles[i]->pause(CURLPAUSE_SEND);
+						}
+					}
+				}
+			}
 		}
 		dispatcher::current(nullptr);
 	}
 
 	void executor::add_handle(handle& hdl) {
 		if (m_thread.get_id() == std::this_thread::get_id()) {
-			return m_multi.add_handle(hdl);
+			hdl.m_executor = this;
+			if (hdl.is_connect_only())
+				m_connect_only_handles.insert(&hdl);
+			else
+				m_multi.add_handle(hdl);
 		} else {
 			std::promise<void> p;
 			auto future = p.get_future();
 			this->push([this, &p, &hdl]() {
 				try {
-					m_multi.add_handle(hdl);
+					hdl.m_executor = this;
+					if (hdl.is_connect_only())
+						m_connect_only_handles.insert(&hdl);
+					else
+						m_multi.add_handle(hdl);
 					p.set_value();
 				} catch (...) { p.set_exception(std::current_exception()); }
 			});
@@ -81,13 +124,21 @@ namespace asyncpp::curl {
 
 	void executor::remove_handle(handle& hdl) {
 		if (m_thread.get_id() == std::this_thread::get_id()) {
-			return m_multi.remove_handle(hdl);
+			hdl.m_executor = nullptr;
+			if (hdl.is_connect_only())
+				m_connect_only_handles.erase(&hdl);
+			else
+				m_multi.remove_handle(hdl);
 		} else {
 			std::promise<void> p;
 			auto future = p.get_future();
 			this->push([this, &p, &hdl]() {
 				try {
-					m_multi.remove_handle(hdl);
+					hdl.m_executor = nullptr;
+					if (hdl.is_connect_only())
+						m_connect_only_handles.erase(&hdl);
+					else
+						m_multi.remove_handle(hdl);
 					p.set_value();
 				} catch (...) { p.set_exception(std::current_exception()); }
 			});
@@ -102,6 +153,11 @@ namespace asyncpp::curl {
 			m_coro.resume();
 		});
 		m_multi->add_handle(*m_handle);
+	}
+
+	executor::exec_awaiter executor::exec(handle& hdl) {
+		if (hdl.is_connect_only()) throw std::logic_error("unsupported");
+		return exec_awaiter{this, &hdl};
 	}
 
 	void executor::push(std::function<void()> fn) {
@@ -123,6 +179,10 @@ namespace asyncpp::curl {
 			lck.unlock();
 			m_multi.wakeup();
 		}
+	}
+
+	void executor::wakeup() {
+		if (m_thread.get_id() != std::this_thread::get_id()) m_multi.wakeup();
 	}
 
 	executor& executor::get_default() {

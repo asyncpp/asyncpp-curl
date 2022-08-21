@@ -42,8 +42,8 @@ namespace asyncpp::curl {
 		cookie(std::string name, std::string value) : m_name{std::move(name)}, m_value{value} {}
 		cookie(std::string domain, bool subdomain, std::string path, bool secure, std::chrono::system_clock::time_point expires, std::string name,
 			   std::string value)
-			: m_domain{std::move(domain)}, m_include_subdomains{subdomain}, m_path{std::move(path)}, m_secure{secure}, m_expires{expires},
-			  m_name{std::move(name)}, m_value{std::move(value)} {}
+			: m_domain{std::move(domain)}, m_path{std::move(path)}, m_expires{expires}, m_name{std::move(name)}, m_value{std::move(value)},
+			  m_include_subdomains{subdomain}, m_secure{secure} {}
 		cookie(const cookie&) = default;
 		cookie(cookie&&) = default;
 		cookie& operator=(const cookie&) = default;
@@ -86,19 +86,19 @@ namespace asyncpp::curl {
 		}
 		friend bool operator!=(const cookie& lhs, const cookie& rhs) noexcept { return !(lhs == rhs); }
 		friend bool operator<(const cookie& lhs, const cookie& rhs) noexcept {
-			return std::tie(rhs.m_domain, rhs.m_include_subdomains, rhs.m_path, rhs.m_secure, rhs.m_expires, rhs.m_name, rhs.m_value) <
+			return std::tie(lhs.m_domain, lhs.m_include_subdomains, lhs.m_path, lhs.m_secure, lhs.m_expires, lhs.m_name, lhs.m_value) <
 				   std::tie(rhs.m_domain, rhs.m_include_subdomains, rhs.m_path, rhs.m_secure, rhs.m_expires, rhs.m_name, rhs.m_value);
 		}
 		friend bool operator>(const cookie& lhs, const cookie& rhs) noexcept {
-			return std::tie(rhs.m_domain, rhs.m_include_subdomains, rhs.m_path, rhs.m_secure, rhs.m_expires, rhs.m_name, rhs.m_value) >
+			return std::tie(lhs.m_domain, lhs.m_include_subdomains, lhs.m_path, lhs.m_secure, lhs.m_expires, lhs.m_name, lhs.m_value) >
 				   std::tie(rhs.m_domain, rhs.m_include_subdomains, rhs.m_path, rhs.m_secure, rhs.m_expires, rhs.m_name, rhs.m_value);
 		}
 		friend bool operator<=(const cookie& lhs, const cookie& rhs) noexcept {
-			return std::tie(rhs.m_domain, rhs.m_include_subdomains, rhs.m_path, rhs.m_secure, rhs.m_expires, rhs.m_name, rhs.m_value) <=
+			return std::tie(lhs.m_domain, lhs.m_include_subdomains, lhs.m_path, lhs.m_secure, lhs.m_expires, lhs.m_name, lhs.m_value) <=
 				   std::tie(rhs.m_domain, rhs.m_include_subdomains, rhs.m_path, rhs.m_secure, rhs.m_expires, rhs.m_name, rhs.m_value);
 		}
 		friend bool operator>=(const cookie& lhs, const cookie& rhs) noexcept {
-			return std::tie(rhs.m_domain, rhs.m_include_subdomains, rhs.m_path, rhs.m_secure, rhs.m_expires, rhs.m_name, rhs.m_value) >=
+			return std::tie(lhs.m_domain, lhs.m_include_subdomains, lhs.m_path, lhs.m_secure, lhs.m_expires, lhs.m_name, lhs.m_value) >=
 				   std::tie(rhs.m_domain, rhs.m_include_subdomains, rhs.m_path, rhs.m_secure, rhs.m_expires, rhs.m_name, rhs.m_value);
 		}
 

@@ -1,15 +1,15 @@
 #pragma once
 #include <chrono>
 #include <cstddef>
-#include <curl/multi.h>
 #include <mutex>
 #include <span>
 
+struct curl_waitfd;
 namespace asyncpp::curl {
 	class handle;
 	class multi {
 		std::recursive_mutex m_mtx;
-		CURLM* m_instance;
+		void* m_instance;
 		int m_wakeup; // eventfd used to implement poll & wakeup on pre 7.68.0
 	public:
 		multi();

@@ -3,10 +3,12 @@
 #include <asyncpp/detail/std_import.h>
 #include <asyncpp/dispatcher.h>
 #include <asyncpp/threadsafe_queue.h>
+
 #include <atomic>
 #include <chrono>
 #include <map>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 
@@ -22,6 +24,7 @@ namespace asyncpp::curl {
 		std::atomic<bool> m_exit;
 		threadsafe_queue<std::function<void()>> m_queue;
 		std::multimap<std::chrono::steady_clock::time_point, std::function<void()>> m_scheduled;
+		std::set<handle*> m_connect_only_handles;
 
 		void worker_thread() noexcept;
 
@@ -40,14 +43,10 @@ namespace asyncpp::curl {
 		executor& operator=(executor&&) = delete;
 
 		/**
-		 * \brief Get a reference to the underlying multi object
-		 * \return The underlying multi.
-		 */
-		multi& get_multi() noexcept { return m_multi; }
-
-		/**
 		 * \brief Add an easy handle to this executor.
 		 * \param hdl The handle to add
+		 * \note Due to a bug in libcurl a connect_only handle can not use asynchronous connect and has to use perform() instead.
+		 * \note Adding it to the executor is still supported and will poll the handle for readiness, causeing the read/write callback to be invoked.
 		 */
 		void add_handle(handle& hdl);
 		/**
@@ -72,7 +71,7 @@ namespace asyncpp::curl {
 		 * \param hdl The handle to await
 		 * \return An awaitable
 		 */
-		exec_awaiter exec(handle& hdl) { return exec_awaiter{this, &hdl}; }
+		exec_awaiter exec(handle& hdl);
 
 		/**
 		 * \brief Push a invocable to be executed on the executor thread.
@@ -91,6 +90,11 @@ namespace asyncpp::curl {
 		 * \param time Timestamp at which to execute the invocable
 		 */
 		void schedule(std::function<void()> fn, std::chrono::steady_clock::time_point time);
+
+		/**
+		 * \brief Wake the underlying multi handle
+		 */
+		void wakeup();
 
 		/**
 		 * \brief Get a global default executor
