@@ -31,6 +31,7 @@ jobs:
           make -j $(nproc)
           sudo make install
       - uses: ./.github/actions/install/gtest
+      - uses: ./.github/actions/install/curl
       - name: Build Tests
         run: |
           mkdir build
