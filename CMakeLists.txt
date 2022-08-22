@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.12)
 project(AsyncppCURL)
 
 find_package(Threads REQUIRED)
@@ -9,8 +9,8 @@ else()
     find_package(CURL REQUIRED)
 endif()
 
-option(BUILD_TEST "Enable test builds" ON)
-option(WITH_ASAN "Enable asan for test builds" ON)
+option(ASYNCPP_BUILD_TEST "Enable test builds" ON)
+option(ASYNCPP_WITH_ASAN "Enable asan for test builds" ON)
 
 if (TARGET asyncpp)
     message(STATUS "Using existing asyncpp target.")
@@ -38,7 +38,7 @@ target_include_directories(asyncpp_curl
 target_compile_features(asyncpp_curl PUBLIC cxx_std_20)
 
 
-if(BUILD_TEST)
+if(ASYNCPP_BUILD_TEST)
     enable_testing()
     include(GoogleTest)
     if(HUNTER_ENABLED)
@@ -56,7 +56,7 @@ if(BUILD_TEST)
     )
     target_link_libraries(asyncpp_curl-test PRIVATE asyncpp_curl GTest::GTest GTest::Main Threads::Threads)
 
-    if(WITH_ASAN)
+    if(ASYNCPP_WITH_ASAN)
         message(STATUS "Building with asan enabled")
         target_compile_options(asyncpp_curl-test PRIVATE -fsanitize=address)
         target_link_libraries(asyncpp_curl-test PRIVATE asan)

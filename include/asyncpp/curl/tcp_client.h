@@ -58,15 +58,13 @@ namespace asyncpp::curl {
 				std::string m_remote;
 				uint16_t const m_port;
 				bool const m_ssl;
-				coroutine_handle<> m_coro{};
 				int m_result{0};
 
 				constexpr bool await_ready() const noexcept { return false; }
 				void await_suspend(coroutine_handle<> h) noexcept {
-					m_coro = h;
-					m_that->connect(std::move(m_remote), m_port, m_ssl, [this](int code) {
+					m_that->connect(std::move(m_remote), m_port, m_ssl, [this, h](int code) {
 						m_result = code;
-						m_coro.resume();
+						h.resume();
 					});
 				}
 				constexpr void await_resume() const {
@@ -89,11 +87,9 @@ namespace asyncpp::curl {
 		[[nodiscard]] auto disconnect() {
 			struct awaiter {
 				tcp_client* const m_that;
-				coroutine_handle<> m_coro{};
 				constexpr bool await_ready() const noexcept { return false; }
 				void await_suspend(coroutine_handle<> h) noexcept {
-					m_coro = h;
-					m_that->disconnect([this]() { m_coro.resume(); });
+					m_that->disconnect([h]() { h.resume(); });
 				}
 				constexpr void await_resume() const noexcept {}
 			};
@@ -119,14 +115,12 @@ namespace asyncpp::curl {
 				tcp_client* const m_that;
 				const void* const m_buffer;
 				const size_t m_size;
-				coroutine_handle<> m_coro{};
 				size_t m_result{};
 				constexpr bool await_ready() const noexcept { return false; }
 				void await_suspend(coroutine_handle<> h) noexcept {
-					m_coro = h;
-					m_that->send(m_buffer, m_size, [this](size_t res) {
+					m_that->send(m_buffer, m_size, [this, h](size_t res) {
 						m_result = res;
-						m_coro.resume();
+						h.resume();
 					});
 				}
 				constexpr size_t await_resume() const noexcept { return m_result; }
@@ -155,14 +149,12 @@ namespace asyncpp::curl {
 				tcp_client* const m_that;
 				const void* const m_buffer;
 				const size_t m_size;
-				coroutine_handle<> m_coro{};
 				size_t m_result{};
 				constexpr bool await_ready() const noexcept { return false; }
 				void await_suspend(coroutine_handle<> h) noexcept {
-					m_coro = h;
-					m_that->send_all(m_buffer, m_size, [this](size_t res) {
+					m_that->send_all(m_buffer, m_size, [this, h](size_t res) {
 						m_result = res;
-						m_coro.resume();
+						h.resume();
 					});
 				}
 				constexpr size_t await_resume() const noexcept { return m_result; }
@@ -189,14 +181,12 @@ namespace asyncpp::curl {
 				tcp_client* const m_that;
 				void* const m_buffer;
 				const size_t m_size;
-				coroutine_handle<> m_coro{};
 				size_t m_result{};
 				constexpr bool await_ready() const noexcept { return false; }
 				void await_suspend(coroutine_handle<> h) noexcept {
-					m_coro = h;
-					m_that->recv(m_buffer, m_size, [this](size_t res) {
+					m_that->recv(m_buffer, m_size, [this, h](size_t res) {
 						m_result = res;
-						m_coro.resume();
+						h.resume();
 					});
 				}
 				constexpr size_t await_resume() const noexcept { return m_result; }
@@ -225,14 +215,12 @@ namespace asyncpp::curl {
 				tcp_client* const m_that;
 				void* const m_buffer;
 				const size_t m_size;
-				coroutine_handle<> m_coro{};
 				size_t m_result{};
 				constexpr bool await_ready() const noexcept { return false; }
 				void await_suspend(coroutine_handle<> h) noexcept {
-					m_coro = h;
-					m_that->recv_all(m_buffer, m_size, [this](size_t res) {
+					m_that->recv_all(m_buffer, m_size, [this, h](size_t res) {
 						m_result = res;
-						m_coro.resume();
+						h.resume();
 					});
 				}
 				constexpr size_t await_resume() const noexcept { return m_result; }

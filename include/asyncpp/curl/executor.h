@@ -59,7 +59,6 @@ namespace asyncpp::curl {
 		struct exec_awaiter {
 			executor* const m_multi;
 			handle* const m_handle;
-			coroutine_handle<> m_coro{};
 			int m_result{0};
 
 			constexpr bool await_ready() const noexcept { return false; }
