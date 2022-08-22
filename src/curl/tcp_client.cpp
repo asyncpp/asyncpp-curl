@@ -15,6 +15,8 @@ namespace asyncpp::curl {
 	tcp_client::~tcp_client() noexcept {}
 
 	void tcp_client::connect(std::string remote, uint16_t port, bool ssl, std::function<void(int)> cb) {
+		// TODO: Rewrite this to use the async codepath once 
+		// TODO: https://github.com/curl/curl/pull/9342 gets merged and has a version number
 		std::unique_lock lck{m_mtx};
 		m_handle.set_option_bool(CURLOPT_CONNECT_ONLY, true);
 		m_handle.set_option_bool(CURLOPT_FRESH_CONNECT, true);
@@ -59,6 +61,7 @@ namespace asyncpp::curl {
 	void tcp_client::disconnect(std::function<void()> cb) {
 		std::unique_lock lck{m_mtx};
 		if (m_handle.is_verbose()) printf("* curl::tcp_client resetting handle to disconnect\n");
+		// Cancel active read and send transactions
 		if (m_recv_handler) m_recv_handler(true);
 		if (m_send_handler) m_send_handler(true);
 		m_send_handler = {};
