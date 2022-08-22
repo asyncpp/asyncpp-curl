@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.15) # Because we need FetchContent_MakeAvailable
+cmake_minimum_required(VERSION 3.15) # Because we need
+                                     # FetchContent_MakeAvailable
 project(AsyncppCURL)
 
 find_package(Threads REQUIRED)
