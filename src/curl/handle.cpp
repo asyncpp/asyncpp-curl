@@ -36,8 +36,10 @@ namespace asyncpp::curl {
 		std::scoped_lock lck{m_mtx};
 		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), val);
 		if (res != CURLE_OK) throw exception{res};
-		if (opt == CURLOPT_CONNECT_ONLY) m_flags = val ? (m_flags | FLAG_is_connect_only) : (m_flags & ~FLAG_is_connect_only);
-		else if (opt == CURLOPT_VERBOSE) m_flags = val ? (m_flags | FLAG_is_verbose) : (m_flags & ~FLAG_is_verbose);
+		if (opt == CURLOPT_CONNECT_ONLY)
+			m_flags = val ? (m_flags | FLAG_is_connect_only) : (m_flags & ~FLAG_is_connect_only);
+		else if (opt == CURLOPT_VERBOSE)
+			m_flags = val ? (m_flags | FLAG_is_verbose) : (m_flags & ~FLAG_is_verbose);
 	}
 
 	void handle::set_option_offset(int opt, long val) {
@@ -283,8 +285,10 @@ namespace asyncpp::curl {
 		if (m_flags == old) return;
 		curl_easy_pause(m_instance, m_flags & CURLPAUSE_ALL);
 		// Wake the executor/multi if theres any to make sure it gets polled soon
-		if(m_executor) m_executor->wakeup();
-		else if(m_multi) m_multi->wakeup();
+		if (m_executor)
+			m_executor->wakeup();
+		else if (m_multi)
+			m_multi->wakeup();
 	}
 
 	bool handle::is_paused(int dir) {

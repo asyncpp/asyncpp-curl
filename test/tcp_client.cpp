@@ -72,11 +72,11 @@ TEST(ASYNCPP_CURL, TcpClientAsyncRead) {
 		COASSERT_EQ(did_receive, 0);
 		co_await client.disconnect();
 		co_await scope.join();
-		
+
 		char buf[12]{};
 		auto read = co_await client.recv(buf, 12);
 		COASSERT_EQ(read, 0);
-		
+
 		co_return;
 	}())
 		.get();
