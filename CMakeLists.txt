@@ -36,6 +36,10 @@ target_link_libraries(asyncpp_curl PRIVATE CURL::libcurl Threads::Threads)
 target_include_directories(asyncpp_curl
                            PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_features(asyncpp_curl PUBLIC cxx_std_20)
+if(NOT HUNTER_ENABLED)
+  find_package(OpenSSL REQUIRED)
+  target_link_libraries(asyncpp_curl PRIVATE OpenSSL::Crypto OpenSSL::SSL)
+endif()
 
 if(ASYNCPP_BUILD_TEST)
   enable_testing()
