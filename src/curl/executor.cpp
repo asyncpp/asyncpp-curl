@@ -147,10 +147,9 @@ namespace asyncpp::curl {
 	}
 
 	void executor::exec_awaiter::await_suspend(coroutine_handle<> h) noexcept {
-		m_coro = h;
-		m_handle->set_donefunction([this](int result) {
+		m_handle->set_donefunction([this, h](int result) {
 			m_result = result;
-			m_coro.resume();
+			h.resume();
 		});
 		m_multi->add_handle(*m_handle);
 	}
