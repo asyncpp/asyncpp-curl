@@ -46,8 +46,12 @@ if(ASYNCPP_BUILD_TEST)
   include(GoogleTest)
   if(HUNTER_ENABLED)
     hunter_add_package(GTest)
+    find_package(GTest CONFIG REQUIRED)
+    add_library(GTest::GTest ALIAS GTest::gtest)
+    add_library(GTest::Main ALIAS GTest::gtest_main)
+  else()
+    find_package(GTest REQUIRED)
   endif()
-  find_package(GTest REQUIRED)
 
   add_executable(
     asyncpp_curl-test
