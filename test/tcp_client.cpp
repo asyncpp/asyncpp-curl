@@ -47,14 +47,14 @@ TEST(ASYNCPP_CURL, TcpClientAsyncRead) {
 		co_await client.connect("tcpbin.com", 4242, false);
 
 		bool did_receive = false;
-		scope.launch([&client, &did_receive]() -> task<void> {
+		scope.launch([](tcp_client& client, bool& did_receive) -> task<void> {
 			char buf[12]{};
 			auto read = co_await client.recv(buf, 12);
 			COASSERT_EQ(read, str.size());
 			std::string_view read_str(buf, str.size());
 			COASSERT_EQ(str, read_str);
 			did_receive = true;
-		}());
+		}(client, did_receive));
 		COASSERT_EQ(did_receive, 0);
 
 		auto written = co_await client.send_all(str.data(), str.size());
@@ -63,12 +63,12 @@ TEST(ASYNCPP_CURL, TcpClientAsyncRead) {
 		co_await scope.join();
 		COASSERT_EQ(did_receive, 1);
 		did_receive = false;
-		scope.launch([&client, &did_receive]() -> task<void> {
+		scope.launch([](tcp_client& client, bool& did_receive) -> task<void> {
 			char buf[12]{};
 			auto read = co_await client.recv(buf, 12);
 			COASSERT_EQ(read, 0);
 			did_receive = true;
-		}());
+		}(client, did_receive));
 		COASSERT_EQ(did_receive, 0);
 		co_await client.disconnect();
 		co_await scope.join();
