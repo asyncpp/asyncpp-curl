@@ -10,9 +10,9 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <stop_token>
 #include <string>
 #include <thread>
-#include <stop_token>
 
 namespace asyncpp::curl {
 	class handle;
@@ -70,14 +70,13 @@ namespace asyncpp::curl {
 			int m_result{0};
 
 			exec_awaiter(executor* exec, handle* hdl, std::stop_token st)
-				: m_parent(exec), m_handle(hdl), m_callback(std::move(st), stop_callback{exec, hdl})
-			{}
+				: m_parent(exec), m_handle(hdl), m_callback(std::move(st), stop_callback{exec, hdl}) {}
 
 			constexpr bool await_ready() const noexcept { return false; }
 			void await_suspend(coroutine_handle<> h) noexcept;
 			constexpr int await_resume() const noexcept { return m_result; }
 		};
-		
+
 		/**
 		 * \brief Return a awaitable that suspends till the handle is finished.
 		 * \param hdl The handle to await
@@ -114,15 +113,14 @@ namespace asyncpp::curl {
 			} else {
 				std::promise<std::invoke_result_t<FN>> promise;
 				auto result = promise.get_future();
-				this->push([&promise, &fn](){
-					try{
+				this->push([&promise, &fn]() {
+					try {
 						if constexpr (std::is_same_v<std::invoke_result_t<FN>, void>) {
 							fn();
 							promise.set_value();
-						} else promise.set_value(fn());
-					} catch(...) {
-						promise.set_exception(std::current_exception());
-					}
+						} else
+							promise.set_value(fn());
+					} catch (...) { promise.set_exception(std::current_exception()); }
 				});
 				return result.get();
 			}

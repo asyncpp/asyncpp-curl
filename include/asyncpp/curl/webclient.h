@@ -7,8 +7,8 @@
 #include <exception>
 #include <functional>
 #include <map>
-#include <variant>
 #include <stop_token>
+#include <variant>
 
 namespace asyncpp::curl {
 	class executor;

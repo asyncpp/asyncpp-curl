@@ -156,9 +156,7 @@ namespace asyncpp::curl {
 	}
 
 	struct http_request::execute_awaiter::data {
-		data(executor* exec, http_request* req, std::stop_token st)
-			: m_exec(exec, &m_handle, std::move(st)), m_request(req)
-		{}
+		data(executor* exec, http_request* req, std::stop_token st) : m_exec(exec, &m_handle, std::move(st)), m_request(req) {}
 
 		executor::exec_awaiter m_exec;
 		handle m_handle{};
@@ -175,13 +173,11 @@ namespace asyncpp::curl {
 		if (m_impl) delete m_impl;
 	}
 
-	void http_request::execute_awaiter::await_suspend(coroutine_handle<> h) noexcept {
-		m_impl->m_exec.await_suspend(h);
-	}
+	void http_request::execute_awaiter::await_suspend(coroutine_handle<> h) noexcept { m_impl->m_exec.await_suspend(h); }
 
 	http_response http_request::execute_awaiter::await_resume() const {
 		auto res = m_impl->m_exec.await_resume();
-		if(res != CURLE_OK) throw exception(res, false);
+		if (res != CURLE_OK) throw exception(res, false);
 		m_impl->m_response.status_code = m_impl->m_handle.get_response_code();
 		return std::move(m_impl->m_response);
 	}
