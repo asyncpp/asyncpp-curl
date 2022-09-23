@@ -6,11 +6,13 @@
 
 #include <atomic>
 #include <chrono>
+#include <future>
 #include <map>
 #include <mutex>
 #include <set>
 #include <string>
 #include <thread>
+#include <stop_token>
 
 namespace asyncpp::curl {
 	class handle;
@@ -57,20 +59,31 @@ namespace asyncpp::curl {
 
 		/** \brief coroutine awaiter for an easy transfer */
 		struct exec_awaiter {
-			executor* const m_multi;
+			executor* const m_parent;
 			handle* const m_handle;
+			struct stop_callback {
+				executor* const m_parent;
+				handle* const m_handle;
+				void operator()();
+			};
+			std::stop_callback<stop_callback> m_callback;
 			int m_result{0};
+
+			exec_awaiter(executor* exec, handle* hdl, std::stop_token st)
+				: m_parent(exec), m_handle(hdl), m_callback(std::move(st), stop_callback{exec, hdl})
+			{}
 
 			constexpr bool await_ready() const noexcept { return false; }
 			void await_suspend(coroutine_handle<> h) noexcept;
 			constexpr int await_resume() const noexcept { return m_result; }
 		};
+		
 		/**
 		 * \brief Return a awaitable that suspends till the handle is finished.
 		 * \param hdl The handle to await
 		 * \return An awaitable
 		 */
-		exec_awaiter exec(handle& hdl);
+		exec_awaiter exec(handle& hdl, std::stop_token st = {});
 
 		/**
 		 * \brief Push a invocable to be executed on the executor thread.
@@ -89,6 +102,31 @@ namespace asyncpp::curl {
 		 * \param time Timestamp at which to execute the invocable
 		 */
 		void schedule(std::function<void()> fn, std::chrono::steady_clock::time_point time);
+
+		/**
+		 * \brief Run an invocable on the executor thread and return the result.
+		 * \param fn Invocable to call
+		 */
+		template<typename FN>
+		std::invoke_result_t<FN> push_wait(FN&& fn) {
+			if (m_thread.get_id() == std::this_thread::get_id()) {
+				return fn();
+			} else {
+				std::promise<std::invoke_result_t<FN>> promise;
+				auto result = promise.get_future();
+				this->push([&promise, &fn](){
+					try{
+						if constexpr (std::is_same_v<std::invoke_result_t<FN>, void>) {
+							fn();
+							promise.set_value();
+						} else promise.set_value(fn());
+					} catch(...) {
+						promise.set_exception(std::current_exception());
+					}
+				});
+				return result.get();
+			}
+		}
 
 		/**
 		 * \brief Wake the underlying multi handle

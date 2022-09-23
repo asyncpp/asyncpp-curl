@@ -27,10 +27,12 @@ namespace asyncpp::curl {
 				m_multi.perform(&still_running);
 				multi::event evt;
 				while (m_multi.next_event(evt)) {
-					if (evt.handle->m_done_callback) {
-						m_queue.emplace([cb = evt.handle->m_done_callback, res = evt.result_code]() { cb(res); });
+					std::unique_lock lck_hdl(evt.handle->m_mtx);
+					if (evt.code == multi::event_code::done) {
+						auto cb = std::exchange(evt.handle->m_done_callback, {});
+						if (!evt.handle->is_connect_only()) m_multi.remove_handle(*evt.handle);
+						if (cb) m_queue.emplace([cb = std::move(cb), res = evt.result_code]() { cb(res); });
 					}
-					if (evt.code == multi::event_code::done && !evt.handle->is_connect_only()) m_multi.remove_handle(*evt.handle);
 				}
 			}
 			while (true) {
@@ -99,51 +101,23 @@ namespace asyncpp::curl {
 	}
 
 	void executor::add_handle(handle& hdl) {
-		if (m_thread.get_id() == std::this_thread::get_id()) {
+		push_wait([this, &hdl]() {
 			hdl.m_executor = this;
 			if (hdl.is_connect_only())
 				m_connect_only_handles.insert(&hdl);
 			else
 				m_multi.add_handle(hdl);
-		} else {
-			std::promise<void> p;
-			auto future = p.get_future();
-			this->push([this, &p, &hdl]() {
-				try {
-					hdl.m_executor = this;
-					if (hdl.is_connect_only())
-						m_connect_only_handles.insert(&hdl);
-					else
-						m_multi.add_handle(hdl);
-					p.set_value();
-				} catch (...) { p.set_exception(std::current_exception()); }
-			});
-			return future.get();
-		}
+		});
 	}
 
 	void executor::remove_handle(handle& hdl) {
-		if (m_thread.get_id() == std::this_thread::get_id()) {
+		push_wait([this, &hdl]() {
 			hdl.m_executor = nullptr;
 			if (hdl.is_connect_only())
 				m_connect_only_handles.erase(&hdl);
 			else
 				m_multi.remove_handle(hdl);
-		} else {
-			std::promise<void> p;
-			auto future = p.get_future();
-			this->push([this, &p, &hdl]() {
-				try {
-					hdl.m_executor = nullptr;
-					if (hdl.is_connect_only())
-						m_connect_only_handles.erase(&hdl);
-					else
-						m_multi.remove_handle(hdl);
-					p.set_value();
-				} catch (...) { p.set_exception(std::current_exception()); }
-			});
-			return future.get();
-		}
+		});
 	}
 
 	void executor::exec_awaiter::await_suspend(coroutine_handle<> h) noexcept {
@@ -151,12 +125,26 @@ namespace asyncpp::curl {
 			m_result = result;
 			h.resume();
 		});
-		m_multi->add_handle(*m_handle);
+		m_parent->add_handle(*m_handle);
 	}
 
-	executor::exec_awaiter executor::exec(handle& hdl) {
+	void executor::exec_awaiter::stop_callback::operator()() {
+		std::unique_lock lck{m_handle->m_mtx};
+		auto cb = std::exchange(m_handle->m_done_callback, {});
+		if (cb) {
+			lck.unlock();
+			m_parent->push([this, cb = std::move(cb)]() {
+				std::unique_lock lck{m_handle->m_mtx};
+				m_handle->m_executor = nullptr;
+				m_parent->m_multi.remove_handle(*m_handle);
+				cb(CURLE_ABORTED_BY_CALLBACK);
+			});
+		}
+	}
+
+	executor::exec_awaiter executor::exec(handle& hdl, std::stop_token st) {
 		if (hdl.is_connect_only()) throw std::logic_error("unsupported");
-		return exec_awaiter{this, &hdl};
+		return exec_awaiter{this, &hdl, std::move(st)};
 	}
 
 	void executor::push(std::function<void()> fn) {

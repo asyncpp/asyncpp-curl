@@ -156,19 +156,19 @@ namespace asyncpp::curl {
 	}
 
 	struct http_request::execute_awaiter::data {
-		executor* executor{};
-		asyncpp::coroutine_handle<> coro_handle{};
-		handle handle{};
-		http_request* request{};
-		http_response response{};
-		int result{-1};
+		data(executor* exec, http_request* req, std::stop_token st)
+			: m_exec(exec, &m_handle, std::move(st)), m_request(req)
+		{}
+
+		executor::exec_awaiter m_exec;
+		handle m_handle{};
+		http_request* m_request{};
+		http_response m_response{};
 	};
 
-	http_request::execute_awaiter::execute_awaiter(http_request& req, http_response::body_storage_t storage, executor* executor) {
-		m_impl = new data();
-		m_impl->request = &req;
-		m_impl->executor = executor ? executor : &executor::get_default();
-		prepare_handle(m_impl->handle, req, m_impl->response, std::move(storage));
+	http_request::execute_awaiter::execute_awaiter(http_request& req, http_response::body_storage_t storage, executor* executor, std::stop_token st) {
+		m_impl = new data(executor ? executor : &executor::get_default(), &req, std::move(st));
+		prepare_handle(m_impl->m_handle, req, m_impl->m_response, std::move(storage));
 	}
 
 	http_request::execute_awaiter::~execute_awaiter() {
@@ -176,18 +176,14 @@ namespace asyncpp::curl {
 	}
 
 	void http_request::execute_awaiter::await_suspend(coroutine_handle<> h) noexcept {
-		m_impl->coro_handle = h;
-		m_impl->handle.set_donefunction([this](int result) {
-			m_impl->result = result;
-			m_impl->response.status_code = m_impl->handle.get_response_code();
-			m_impl->coro_handle.resume();
-		});
-		m_impl->executor->add_handle(m_impl->handle);
+		m_impl->m_exec.await_suspend(h);
 	}
 
 	http_response http_request::execute_awaiter::await_resume() const {
-		if (m_impl->result != CURLE_OK) throw exception{m_impl->result, false};
-		return std::move(m_impl->response);
+		auto res = m_impl->m_exec.await_resume();
+		if(res != CURLE_OK) throw exception(res, false);
+		m_impl->m_response.status_code = m_impl->m_handle.get_response_code();
+		return std::move(m_impl->m_response);
 	}
 
 } // namespace asyncpp::curl

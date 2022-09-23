@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 #include <variant>
+#include <stop_token>
 
 namespace asyncpp::curl {
 	class executor;
@@ -73,7 +74,7 @@ namespace asyncpp::curl {
 
 		http_response execute_sync(http_response::body_storage_t body_store_method = http_response::inline_body{});
 		struct execute_awaiter {
-			execute_awaiter(http_request& req, http_response::body_storage_t storage, executor* exec);
+			execute_awaiter(http_request& req, http_response::body_storage_t storage, executor* exec, std::stop_token st = {});
 			~execute_awaiter();
 			execute_awaiter(const execute_awaiter&) = delete;
 			execute_awaiter(execute_awaiter&& other) : m_impl{other.m_impl} { other.m_impl = nullptr; }
@@ -95,6 +96,12 @@ namespace asyncpp::curl {
 		}
 		execute_awaiter execute_async(http_response::body_storage_t body_store_method, executor& exec) {
 			return execute_awaiter{*this, std::move(body_store_method), &exec};
+		}
+		execute_awaiter execute_async(std::stop_token st, http_response::body_storage_t body_store_method = http_response::inline_body{}) {
+			return execute_awaiter{*this, std::move(body_store_method), nullptr, std::move(st)};
+		}
+		execute_awaiter execute_async(std::stop_token st, http_response::body_storage_t body_store_method, executor& exec) {
+			return execute_awaiter{*this, std::move(body_store_method), &exec, std::move(st)};
 		}
 	};
 } // namespace asyncpp::curl
