@@ -27,10 +27,12 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/executor.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/handle.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/multi.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/sha1.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/slist.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/tcp_client.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/uri.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/webclient.cpp)
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/webclient.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/websocket.cpp)
 target_link_libraries(asyncpp_curl PUBLIC asyncpp)
 target_link_libraries(asyncpp_curl PRIVATE CURL::libcurl Threads::Threads)
 target_include_directories(asyncpp_curl
@@ -60,6 +62,7 @@ if(ASYNCPP_BUILD_TEST)
     ${CMAKE_CURRENT_SOURCE_DIR}/test/slist.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/tcp_client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/uri.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/util.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/webclient.cpp)
   target_link_libraries(asyncpp_curl-test PRIVATE asyncpp_curl GTest::GTest
                                                   GTest::Main Threads::Threads)
@@ -71,4 +74,14 @@ if(ASYNCPP_BUILD_TEST)
   endif()
 
   gtest_discover_tests(asyncpp_curl-test)
+
+  add_executable(
+    asyncpp_curl-ws-autobahn
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/ws-autobahn.cpp)
+  target_link_libraries(asyncpp_curl-ws-autobahn PRIVATE asyncpp_curl Threads::Threads)
+
+  if(ASYNCPP_WITH_ASAN)
+    target_compile_options(asyncpp_curl-ws-autobahn PRIVATE -fsanitize=address)
+    target_link_libraries(asyncpp_curl-ws-autobahn PRIVATE asan)
+  endif()
 endif()
