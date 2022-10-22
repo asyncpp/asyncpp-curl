@@ -6,7 +6,6 @@
 #include <asyncpp/event.h>
 #include <asyncpp/generator.h>
 #include <asyncpp/launch.h>
-#include <asyncpp/stack_allocator.h>
 #include <asyncpp/sync_wait.h>
 #include <asyncpp/task.h>
 #include <asyncpp/threadsafe_queue.h>
@@ -21,9 +20,8 @@ namespace {
 	static const std::string ws_magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 	using namespace asyncpp;
 	typedef curl::websocket::opcode opcode;
-	using coro_allocator = allocator_ref<stack_allocator<std::byte>>;
 
-	task<bool, coro_allocator> read_until(curl::tcp_client& client, std::string_view delim, std::string& result, std::string& extra, coro_allocator) {
+	task<bool> read_until(curl::tcp_client& client, std::string_view delim, std::string& result, std::string& extra) {
 		static constexpr size_t chunk_size = 64 * 1024;
 		result.resize(chunk_size);
 		size_t old_size = 0;
@@ -314,7 +312,6 @@ namespace asyncpp::curl {
 		}
 
 		async_scope.launch([](ref<websocket_state> state) -> task<void> {
-			stack_allocator<std::byte, 2048> alloc;
 			std::string buffer;
 			try {
 				// clang-format off
@@ -329,7 +326,7 @@ namespace asyncpp::curl {
 				co_await state->client.send_all(request.data(), request.size());
 
 				std::string header;
-				bool header_ok = co_await read_until(state->client, "\r\n\r\n", header, buffer, alloc);
+				bool header_ok = co_await read_until(state->client, "\r\n\r\n", header, buffer);
 				if (!header_ok) throw exception(CURLE_RECV_ERROR);
 				auto lines = string_split(header, std::string_view("\r\n"));
 				if (lines.empty()) throw exception(CURLE_WEIRD_SERVER_REPLY);
