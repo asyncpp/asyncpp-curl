@@ -35,16 +35,16 @@ promise<std::pair<std::string, bool>> read_message(websocket& ws) {
 
 task<int> async_main(int argc, const char** argv) {
 	if (argc < 2) {
-		std::cerr << argv[0] << " <autobahn server> [AppName]" << std::endl;
+		std::cerr << argv[0] << " <autobahn server> [caseID]" << std::endl;
 		co_return -1;
 	}
 
-	std::string base = argv[1];
-	std::string app_name = argc > 2 ? argv[2] : "asyncpp-curl";
+	const std::string base = argv[1];
+	const std::string app_name = "asyncpp-curl";
 
 	// Get testcase count
-	size_t ncases = 0;
-	{
+	size_t ncases = argc > 2 ? std::stoull(argv[2]) : 0;
+	if(ncases == 0) {
 		websocket socket;
         auto msg = read_message(socket);
 		socket.connect(uri(base + "/getCaseCount"));
@@ -52,7 +52,7 @@ task<int> async_main(int argc, const char** argv) {
         ncases = std::stoull(res.first);
 	}
     std::cout << "Number of cases: " << ncases << std::endl;
-	for(size_t i = 1; i < ncases; i++) {
+	for(size_t i = argc > 2 ? ncases : 1; i <= ncases; i++) {
 		websocket socket;
 		socket.set_on_open([i](int code){
 			std::cout << "Test case " << i << " started..." << std::endl;
@@ -65,12 +65,12 @@ task<int> async_main(int argc, const char** argv) {
 			std::cout << "Test case " << i << "/" << ncases << " finished... (code=" << code << ", reason=\"" << reason << "\")" << std::endl;
 			res.fulfill({});
 		});
-		socket.connect(uri(base + "/runCase?case=" + std::to_string(i) + "&agent=asyncpp-curl"));
+		socket.connect(uri(base + "/runCase?case=" + std::to_string(i) + "&agent=" + app_name));
 		co_await res;
 	}
 	{
 		websocket socket;
-		socket.connect(uri(base + "/updateReports?agent=asyncpp-curl"));
+		socket.connect(uri(base + "/updateReports?agent=" + app_name));
 	}
 
 	co_return 0;

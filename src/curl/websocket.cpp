@@ -2,8 +2,10 @@
 #include <asyncpp/curl/executor.h>
 #include <asyncpp/curl/sha1.h>
 #include <asyncpp/curl/websocket.h>
+
 #include <asyncpp/event.h>
 #include <asyncpp/generator.h>
+#include <asyncpp/launch.h>
 #include <asyncpp/stack_allocator.h>
 #include <asyncpp/sync_wait.h>
 #include <asyncpp/task.h>
@@ -14,8 +16,6 @@
 #include <iostream>
 #include <random>
 #include <string_view>
-
-#include <csignal>
 
 namespace {
 	static const std::string ws_magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -65,6 +65,8 @@ namespace {
 		else
 			std::copy(ptr_in, ptr_in + sizeof(T), ptr_out);
 	}
+
+	curl::websocket::opcode clean_op(curl::websocket::opcode op) { return static_cast<curl::websocket::opcode>(static_cast<uint8_t>(op) & 0x0f); }
 } // namespace
 
 namespace asyncpp::curl {
@@ -85,7 +87,6 @@ namespace asyncpp::curl {
 
 			// Callbacks
 			std::function<void(int)> on_open;
-			std::function<void(opcode, websocket::buffer)> on_frame;
 			std::function<void(uint16_t, std::string_view)> on_close;
 			std::function<void(websocket::buffer, bool)> on_message;
 			std::function<void(websocket::buffer)> on_ping;
@@ -94,19 +95,27 @@ namespace asyncpp::curl {
 			// Async management
 			async_launch_scope async_scope{};
 
-			opcode fragment_code;
+			opcode fragment_code = opcode::continuation;
 			std::string fragment_payload;
+			size_t fragment_validate_offset = 0;
 
-			enum class cs { connect, handshake, open, client_close, closed };
+			enum class cs { connect, handshake, open, client_close, server_close, closed };
 			std::atomic<cs> con_state;
 
-			std::atomic<utf8_validator::mode> utf8_mode{utf8_validator::mode::strict};
+			cs state_transition(cs newstate) {
+				auto old = con_state.exchange(newstate);
+				constexpr const char* states[] = {"connect", "handshake", "open", "client_close", "server_close", "closed"};
+				std::cout << states[static_cast<uint32_t>(old)] << " => " << states[static_cast<uint32_t>(newstate)] << std::endl;
+				return old;
+			}
+
+			std::atomic<utf8_validator::mode> utf8_mode{utf8_validator::mode::pedantic};
 
 			// Parser state
 			size_t parser_wanted_size{2};
 			std::string parser_data;
 
-			// Transmitt side
+			// Transmit side
 			std::atomic<bool> send_should_exit{false};
 			single_consumer_event send_event;
 			threadsafe_queue<std::pair<std::string, std::function<void(bool)>>> send_queue;
@@ -117,10 +126,19 @@ namespace asyncpp::curl {
 
 			void try_parse_frame();
 			void handle_frame(opcode code, std::string payload);
+			void handle_close_frame(opcode code, std::string payload);
+			void handle_ping_frame(opcode code, std::string payload);
+			void handle_pong_frame(opcode code, std::string payload);
+			void handle_text_frame(opcode code, std::string payload);
+			void handle_binary_frame(opcode code, std::string payload);
+			void handle_continuation_frame(opcode code, std::string payload);
 
 			void connect(const uri& url);
 			void close(uint16_t code, std::string_view reason);
+			void close_raw(uint16_t code, std::string_view reason);
 			void send_frame(opcode op, const websocket::buffer buf, std::function<void(bool)> cb);
+
+			void push(std::function<void()> cb) { client.executor().push(std::move(cb)); }
 		};
 
 		void refcounted_add_ref(const websocket_state* ptr) noexcept {
@@ -153,19 +171,17 @@ namespace asyncpp::curl {
 
 	websocket::~websocket() {
 		launch([](ref<detail::websocket_state> state) -> task<void> {
-			if (state->client.is_connected()) {
-				state->close(1002, "Going away");
-				co_await state->client.disconnect();
-			}
+			if (state->client.is_connected() && state->con_state != detail::websocket_state::cs::closed) { state->close(1002, "Going away"); }
 			state->send_should_exit = true;
 			state->send_event.set();
+			co_await state->async_scope.join();
 		}(m_state));
 	}
 
 	void websocket::connect(const uri& url) { m_state->connect(url); }
 
 	void detail::websocket_state::connect(const uri& url) {
-		con_state = cs::connect;
+		state_transition(cs::connect);
 		ref<websocket_state> state(this);
 		last_url = url;
 		//client.handle().set_verbose(true);
@@ -176,7 +192,8 @@ namespace asyncpp::curl {
 	}
 
 	void websocket::close(uint16_t code, std::string_view reason) {
-		if (!utf8_validator{}(reason, m_state->utf8_mode)) return;
+		if (utf8_validator{}(reason, m_state->utf8_mode) != utf8_validator::result::valid) return;
+		std::unique_lock lck{m_state->mtx};
 		m_state->close(code, reason);
 	}
 
@@ -205,11 +222,6 @@ namespace asyncpp::curl {
 		m_state->on_pong = std::move(cb);
 	}
 
-	void websocket::set_on_frame(std::function<void(opcode, buffer)> cb) {
-		std::unique_lock lck{m_state->mtx};
-		m_state->on_frame = std::move(cb);
-	}
-
 	websocket::header_map& websocket::request_headers() noexcept { return m_state->request_headers; };
 	websocket::header_map& websocket::response_headers() noexcept { return m_state->response_headers; };
 	const websocket::header_map& websocket::request_headers() const noexcept { return m_state->request_headers; };
@@ -220,28 +232,47 @@ namespace asyncpp::curl {
 
 	void websocket::send_frame(opcode op, buffer data, std::function<void(bool)> cb) {
 		if (m_state->con_state != detail::websocket_state::cs::open) {
-			if (cb) m_state->client.executor().push([cb = std::move(cb)]() { cb(false); });
+			if (cb) m_state->push([cb = std::move(cb), state = m_state]() { cb(false); });
 			return;
 		}
 		m_state->send_frame(op, data, std::move(cb));
 	}
 
 	void detail::websocket_state::close(uint16_t code, std::string_view reason) {
-		std::string frame;
-		frame.resize(2 + reason.size());
-		set_be<uint16_t>(frame.data(), code);
-		memcpy(frame.data() + 2, reason.data(), reason.size());
-		ref<websocket_state> state(this);
-		send_frame(opcode::fin | opcode::close, std::as_bytes(std::span<char>{frame.data(), frame.size()}), [state](bool ok) {
-			if (!ok) return;
-		});
+		if (con_state == cs::closed || con_state == cs::client_close) return;
+		if (con_state == cs::server_close) {
+			// CLOSE frame was received
+			state_transition(cs::closed);
+
+			auto cb = [cb = on_close, code, reason = std::string(reason), state = ref<websocket_state>(this)]() {
+				if (cb) cb(code, reason);
+			};
+
+			std::string payload;
+			payload.resize(sizeof(uint16_t) + reason.size());
+			set_be<uint16_t>(payload.data(), code);
+			std::memcpy(payload.data() + 2, reason.data(), reason.size());
+			send_frame(opcode::fin | opcode::close, as_bytes(payload), [cb = std::move(cb)](bool ok) { cb(); });
+
+		} else {
+			// Otherwise we call on_close on disconnect/fin reply
+			state_transition(cs::client_close);
+		}
+		this->close_raw(code, reason);
+	}
+
+	void detail::websocket_state::close_raw(uint16_t code, std::string_view reason) {
+		std::string payload;
+		payload.resize(sizeof(uint16_t) + reason.size());
+		set_be<uint16_t>(payload.data(), code);
+		std::memcpy(payload.data() + 2, reason.data(), reason.size());
+		send_frame(opcode::fin | opcode::close, as_bytes(payload), [state = ref<websocket_state>(this)](bool ok) {});
 	}
 
 	void detail::websocket_state::send_frame(opcode op, const websocket::buffer buf, std::function<void(bool)> cb) {
-		auto clean_op = static_cast<opcode>(static_cast<uint8_t>(op) & 0xf);
-		if (clean_op == opcode::text) {
+		if (clean_op(op) == opcode::text) {
 			std::string_view payload_sv(reinterpret_cast<const char*>(buf.data()), buf.size());
-			if (!utf8_validator{}(payload_sv, utf8_mode)) return cb(false);
+			if (utf8_validator{}(payload_sv, utf8_mode) == utf8_validator::result::invalid) return cb(false);
 		}
 		std::pair<std::string, std::function<void(bool)>> data;
 		data.second = cb;
@@ -270,13 +301,12 @@ namespace asyncpp::curl {
 		for (size_t i = 0; i < buf.size_bytes(); i++) {
 			data.first[i + header_len] ^= masking_key[i % 4];
 		}
-		// TODO Build frame
 		send_queue.emplace(std::move(data));
 		send_event.set();
 	}
 
 	void detail::websocket_state::raw_on_connect(int code) {
-		con_state = cs::handshake;
+		state_transition(cs::handshake);
 		ref<websocket_state> state(this);
 		if (code != 0) {
 			if (on_open) client.executor().push([state, code]() { state->on_open(code); });
@@ -336,7 +366,7 @@ namespace asyncpp::curl {
 			state->parser_data = std::move(buffer);
 			state->client.set_on_data_available([parent = state.get()](bool cancelled) { return parent->raw_on_data_available(cancelled); });
 			state->client.executor().push([state]() {
-				state->con_state = cs::open;
+				state->state_transition(cs::open);
 				if (state->on_open) state->on_open(0);
 				state->try_parse_frame();
 				state->client.pause_receive(false);
@@ -354,7 +384,7 @@ namespace asyncpp::curl {
 					}
 					auto res = co_await state->client.send_all(element->first.data(), element->first.size());
 					if (element->second) {
-						state->client.executor().push([ok = res == element->first.size(), cb = std::move(element->second)]() { cb(ok); });
+						state->push([ok = res == element->first.size(), cb = std::move(element->second)]() { cb(ok); });
 					}
 				}
 			}
@@ -362,16 +392,17 @@ namespace asyncpp::curl {
 				auto e = state->send_queue.pop();
 				if (!e) break;
 				if (e->second) {
-					state->client.executor().push([cb = std::move(e->second)]() { cb(false); });
+					state->push([cb = std::move(e->second)]() { cb(false); });
 				}
 			}
+			if (state->client.is_connected()) co_await state->client.disconnect();
 		}(state));
 	}
 
 	void detail::websocket_state::raw_on_disconnect() {
-		if (auto old = con_state.exchange(cs::closed); old == cs::closed) return;
+		if (auto old = state_transition(cs::closed); old == cs::closed || old == cs::server_close) return;
 		if (client.handle().is_verbose()) std::cout << __PRETTY_FUNCTION__ << " on_close()" << std::endl;
-		if (on_close) client.executor().push([cb = on_close]() { cb(1006, "Connection lost"); });
+		if (on_close) push([cb = on_close, state = ref<websocket_state>(this)]() { cb(1006, "Connection lost"); });
 	}
 
 	tcp_client::callback_result detail::websocket_state::raw_on_data_available(bool cancelled) {
@@ -393,6 +424,7 @@ namespace asyncpp::curl {
 	}
 
 	void detail::websocket_state::try_parse_frame() {
+		std::unique_lock lck{mtx};
 		while (parser_data.size() >= parser_wanted_size) {
 			auto code = static_cast<opcode>(parser_data[0]);
 			bool is_masked = parser_data[1] & 0x80;
@@ -415,129 +447,119 @@ namespace asyncpp::curl {
 	}
 
 	void detail::websocket_state::handle_frame(opcode code, std::string payload) {
-		std::unique_lock lck{mtx};
-		if (con_state.load() == cs::closed) return;
+		if (auto s = con_state.load(); s == cs::closed || s == cs::server_close) return;
 
-		if (on_frame) on_frame(code, as_bytes(payload));
-		auto clean_code = static_cast<opcode>(static_cast<uint8_t>(code) & 0xf);
-		// We are in a fragmented frame and this is a continuation
-		if (clean_code == opcode::continuation && fragment_code != opcode::continuation) {
-			fragment_payload.append(payload);
-			// Unless this is the last frame we are done
-			if (!(code & opcode::fin)) {
-				return;
-			} else {
-				// Last fragment, copy saved to current data and clean fragment buffers
-				code = fragment_code | opcode::fin;
-				clean_code = fragment_code;
-				payload = std::move(fragment_payload);
-				fragment_code = opcode::continuation;
-			}
+		// RSV Bits should be zero
+		if (static_cast<uint8_t>(code) & 0x70) return this->close(1002, "Protocol error");
+
+		switch (clean_op(code)) {
+		case opcode::continuation: this->handle_continuation_frame(code, std::move(payload)); break;
+		case opcode::text: this->handle_text_frame(code, std::move(payload)); break;
+		case opcode::binary: this->handle_binary_frame(code, std::move(payload)); break;
+		case opcode::close: this->handle_close_frame(code, std::move(payload)); break;
+		case opcode::ping: this->handle_ping_frame(code, std::move(payload)); break;
+		case opcode::pong: this->handle_pong_frame(code, std::move(payload)); break;
+		default: close(1002, "Protocol error"); break;
 		}
-		// First fragment
-		if (!(code & opcode::fin)) {
-			bool has_callback = false;
-			switch (clean_code) {
-			case opcode::text:
-			case opcode::binary: has_callback = !!on_message; break;
-			case opcode::close:
-			case opcode::ping:
-			case opcode::pong: return close(1002, "Protocol error");
-			default: break;
-			}
-			if (fragment_code == opcode::continuation) {
-				// No active fragment session
-				return close(1002, "Protocol error");
-			} else {
-			}
-			if (has_callback) {
-				fragment_code = clean_code;
-				fragment_payload = std::move(payload);
-			} else {
-				fragment_code = opcode::continuation;
-				fragment_payload.clear();
-			}
+	}
+
+	void detail::websocket_state::handle_close_frame(opcode op, std::string payload) {
+		uint16_t code = 1000;
+		std::string_view reason = payload;
+		if (reason.size() >= 2) {
+			code = get_be<uint16_t>(reason.data());
+			reason.remove_prefix(2);
+		}
+
+		if (con_state == cs::client_close) {
+			// This is a reply to client initiated close
+			if (on_close) push([cb = on_close, code, reason = std::string(reason), state = ref<websocket_state>(this)]() { cb(code, reason); });
+			state_transition(cs::closed);
 			return;
-		}
+		} else {
+			state_transition(cs::server_close);
+			// Control frames may never be fragmented or have multibyte length
+			if (!(op & opcode::fin) || payload.size() > 125 || payload.size() == 1) { return this->close(1002, "Protocol error"); }
+			// Check if payload is valid utf8
+			if (utf8_validator{}(reason, utf8_mode) != utf8_validator::result::valid) { return this->close(1007, "Invalid utf-8"); }
 
-		switch (clean_code) {
-		case opcode::continuation: return close(1002, "Protocol error");
-		case opcode::text:
-		case opcode::binary: break;
-		default:
-			// Control frames should only be 125 bytes max
-			if (payload.size() > 125) {
-				close(1002, "Protocol error");
-				return;
+			if (code < 1000 || code == 1004 || code == 1005 || code == 1006 || (code >= 1015 && code < 3000) || code >= 5000) {
+				return this->close(1002, "Protocol error");
 			}
-			break;
+
+			// Close seems valid, send the same code back
+			close(code, reason);
 		}
+	}
 
-		if (clean_code == opcode::text) {
-			// verify utf8
-			if (!utf8_validator{}(payload, utf8_mode)) return close(1007, "Invalid utf8");
+	void detail::websocket_state::handle_ping_frame(opcode op, std::string payload) {
+		// Control frames may never be fragmented or have multibyte length
+		if (!(op & opcode::fin) || payload.size() > 125) { return this->close(1002, "Protocol error"); }
+		if (on_ping)
+			push([cb = on_ping, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload)); });
+		else
+			this->send_frame(opcode::fin | opcode::pong, as_bytes(payload), [state = ref<websocket_state>(this)](bool) {});
+	}
+
+	void detail::websocket_state::handle_pong_frame(opcode op, std::string payload) {
+		// Control frames may never be fragmented or have multibyte length
+		if (!(op & opcode::fin) || payload.size() > 125) { return this->close(1002, "Protocol error"); }
+		if (on_pong) push([cb = on_pong, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload)); });
+	}
+
+	void detail::websocket_state::handle_text_frame(opcode op, std::string payload) {
+		// The fragment buffer should be empty
+		if (fragment_code != opcode::continuation) return close(1002, "Protocol error");
+		if (!(op & opcode::fin)) {
+			// Fragment start
+			fragment_code = opcode::text;
+			fragment_payload = std::move(payload);
+			std::string_view sv{fragment_payload};
+			auto last_valid = sv.cbegin();
+			if (utf8_validator{}(sv, utf8_mode, &last_valid) == utf8_validator::result::invalid) return close(1007, "Invalid utf8");
+			fragment_validate_offset = std::distance(sv.begin(), last_valid);
+		} else { // Unfragmented message
+			if (utf8_validator{}(payload, utf8_mode) != utf8_validator::result::valid) return close(1007, "Invalid utf8");
+			if (on_message) push([cb = on_message, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload), false); });
 		}
+	}
 
-		ref<websocket_state> state(this);
+	void detail::websocket_state::handle_binary_frame(opcode op, std::string payload) {
+		// The fragment buffer should be empty
+		if (fragment_code != opcode::continuation) return close(1002, "Protocol error");
+		if (!(op & opcode::fin)) {
+			// Fragment start
+			fragment_code = opcode::binary;
+			fragment_payload = std::move(payload);
+			fragment_validate_offset = 0;
+		} else { // Unfragmented message
+			if (on_message) push([cb = on_message, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload), true); });
+		}
+	}
 
-		// If we reach here payload is a full payload and code is a frame with fin bit set
-		std::function<void()> cb;
-		switch (clean_code) {
-		case opcode::text:
-			if (on_message) cb = [cb = on_message, payload = std::move(payload)]() { cb(as_bytes(payload), false); };
-			break;
-		case opcode::binary:
-			if (on_message) cb = [cb = on_message, payload = std::move(payload)]() { cb(as_bytes(payload), true); };
-			break;
-		case opcode::close:
-			// If this is a reply to a client fin, the connection is fully closed
-			if (state->con_state == cs::client_close) {
-				state->con_state = cs::closed;
-				break;
+	void detail::websocket_state::handle_continuation_frame(opcode op, std::string payload) {
+		// The fragment buffer should not be empty
+		if (fragment_code == opcode::continuation) return close(1002, "Protocol error");
+		fragment_payload.append(payload);
+		if (!!(op & opcode::fin)) { // We are done
+			bool binary = fragment_code == opcode::binary;
+			fragment_code = opcode::continuation;
+			payload = std::move(fragment_payload);
+			if (!binary) {
+				std::string_view sv{payload};
+				sv.remove_prefix(fragment_validate_offset);
+				if (utf8_validator{}(sv, utf8_mode) != utf8_validator::result::valid) return close(1007, "Invalid utf8");
 			}
-			if (state->con_state == cs::open) {
-				// If this is a server initiated close, reply with a close
-				state->con_state = cs::closed;
-				uint16_t code = 1000;
-				std::string_view reason{};
-				if (payload.size() >= 2) {
-					code = get_be<uint16_t>(payload.data());
-					reason = std::string_view{payload.data() + 2, payload.size() - 2};
-				}
-				if (!utf8_validator{}(reason, state->utf8_mode))
-					state->close(1007, "Invalid utf8");
-				else if(code < 1000 || code == 1004 || code == 1005 || code == 1006 || (code >= 1015 && code < 3000) || code >= 5000)
-					state->close(1002, "Protocol error");
-				else
-					state->send_frame(opcode::fin | opcode::close, as_bytes(payload), [state](bool ok) {});
-			}
-			cb = [cb = on_close, payload = std::move(payload), state]() {
-				uint16_t code = 1000;
-				std::string_view reason{};
-				if (payload.size() >= 2) {
-					code = get_be<uint16_t>(payload.data());
-					reason = std::string_view{payload.data() + 2, payload.size() - 2};
-				}
-				// Call the user code
-				if (state->client.handle().is_verbose()) std::cout << __PRETTY_FUNCTION__ << " on_close()" << std::endl;
-				if (cb) cb(code, reason);
-			};
-			break;
-		case opcode::ping:
-			cb = [cb = on_ping, payload = std::move(payload), state]() {
-				if (cb)
-					cb(as_bytes(payload));
-				else
-					state->send_frame(opcode::fin | opcode::pong, as_bytes(payload), [](bool) {});
-			};
-			break;
-		case opcode::pong:
-			if (on_pong) cb = [cb = on_pong, payload = std::move(payload)]() { cb(as_bytes(payload)); };
-			break;
-		default: state->close(1002, "Protocol error"); break;
+			if (on_message)
+				push([cb = on_message, binary, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload), binary); });
+		} else if (fragment_code != opcode::binary) {
+			// Fail fast if received utf8 causes invalid sequences
+			std::string_view sv{fragment_payload};
+			sv.remove_prefix(fragment_validate_offset);
+			auto last_valid = sv.cbegin();
+			if (utf8_validator{}(sv, utf8_mode, &last_valid) == utf8_validator::result::invalid) return close(1007, "Invalid utf8");
+			fragment_validate_offset += std::distance(sv.begin(), last_valid);
 		}
-		lck.unlock();
-		if (cb) client.executor().push(cb);
 	}
 
 } // namespace asyncpp::curl

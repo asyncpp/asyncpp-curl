@@ -41,7 +41,6 @@ namespace asyncpp::curl {
 		void close(uint16_t code, std::string_view reason);
 		bool is_connected() const noexcept;
 
-		void send_frame(opcode op, buffer data, std::function<void(bool)> cb);
 		void send(buffer data, bool binary, std::function<void(bool)> cb);
 		void send_text(std::string_view sv, std::function<void(bool)> cb);
 		void send_binary(buffer data, std::function<void(bool)> cb);
@@ -53,7 +52,6 @@ namespace asyncpp::curl {
 		void set_on_message(std::function<void(buffer, bool)> cb);
 		void set_on_ping(std::function<void(buffer)> cb);
 		void set_on_pong(std::function<void(buffer)> cb);
-		void set_on_frame(std::function<void(opcode, buffer)> cb);
 
 		header_map& request_headers() noexcept;
 		header_map& response_headers() noexcept;
@@ -64,6 +62,7 @@ namespace asyncpp::curl {
 		utf8_validator::mode utf8_validation_mode() const noexcept;
 
 	private:
+		void send_frame(opcode op, buffer data, std::function<void(bool)> cb);
 		ref<detail::websocket_state> m_state;
 	};
 
