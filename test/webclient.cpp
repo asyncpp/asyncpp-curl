@@ -38,7 +38,7 @@ TEST(ASYNCPP_CURL, WebClientAsyncStopToken) {
 }
 
 TEST(ASYNCPP_CURL, WebClientCookies) {
-	auto req = http_request::make_get("https://www.google.de/");
+	auto req = http_request::make_get("http://www.google.de");
 	auto resp = req.execute_sync();
 	ASSERT_EQ(resp.status_code, 200);
 	ASSERT_EQ(resp.status_message, "OK");
