@@ -102,8 +102,6 @@ namespace asyncpp::curl {
 			enum class cs { init, connect, handshake, open, client_close, server_close, closed };
 			std::atomic<cs> con_state{cs::init};
 
-			cs state_transition(cs newstate);
-
 			std::atomic<utf8_validator::mode> utf8_mode{utf8_validator::mode::pedantic};
 
 			// Parser state
@@ -115,11 +113,13 @@ namespace asyncpp::curl {
 			single_consumer_event send_event;
 			threadsafe_queue<std::pair<std::string, std::function<void(bool)>>> send_queue;
 
+			// Connection state handling
+			cs state_transition(cs newstate);
 			void raw_on_connect(int code);
 			void raw_on_disconnect();
 			tcp_client::callback_result raw_on_data_available(bool cancelled);
 
-			void try_parse_frame();
+			// Frame handling
 			void handle_frame(opcode code, std::string payload);
 			void handle_close_frame(opcode code, std::string payload);
 			void handle_ping_frame(opcode code, std::string payload);
@@ -128,9 +128,9 @@ namespace asyncpp::curl {
 			void handle_binary_frame(opcode code, std::string payload);
 			void handle_continuation_frame(opcode code, std::string payload);
 
+			// Api
 			void connect(const uri& url);
 			void close(uint16_t code, std::string_view reason);
-			void close_raw(uint16_t code, std::string_view reason);
 			void send_frame(opcode op, const websocket::buffer buf, std::function<void(bool)> cb);
 		};
 
@@ -172,16 +172,6 @@ namespace asyncpp::curl {
 	}
 
 	void websocket::connect(const uri& url) { m_state->connect(url); }
-
-	void detail::websocket_state::connect(const uri& url) {
-		state_transition(cs::connect);
-		ref<websocket_state> state(this);
-		last_url = url;
-		client.connect(url.host(), url.port(), url.scheme() == "wss", [state](int result) mutable {
-			state->raw_on_connect(result);
-			state.reset();
-		});
-	}
 
 	void websocket::close(uint16_t code, std::string_view reason) {
 		if (utf8_validator{}(reason, m_state->utf8_mode) != utf8_validator::result::valid) return;
@@ -238,73 +228,8 @@ namespace asyncpp::curl {
 		return old;
 	}
 
-	void detail::websocket_state::close(uint16_t code, std::string_view reason) {
-		if (con_state == cs::closed || con_state == cs::client_close) return;
-		if (con_state == cs::server_close) {
-			// CLOSE frame was received
-			state_transition(cs::closed);
-
-			auto cb = [cb = on_close, code, reason = std::string(reason), state = ref<websocket_state>(this)]() {
-				if (cb) cb(code, reason);
-			};
-
-			std::string payload;
-			payload.resize(sizeof(uint16_t) + reason.size());
-			set_be<uint16_t>(payload.data(), code);
-			std::memcpy(payload.data() + 2, reason.data(), reason.size());
-			send_frame(opcode::fin | opcode::close, as_bytes(payload), [cb = std::move(cb)](bool ok) { cb(); });
-		} else {
-			// Otherwise we call on_close on disconnect/fin reply
-			state_transition(cs::client_close);
-			this->close_raw(code, reason);
-		}
-	}
-
-	void detail::websocket_state::close_raw(uint16_t code, std::string_view reason) {
-		std::string payload;
-		payload.resize(sizeof(uint16_t) + reason.size());
-		set_be<uint16_t>(payload.data(), code);
-		std::memcpy(payload.data() + 2, reason.data(), reason.size());
-		send_frame(opcode::fin | opcode::close, as_bytes(payload), [state = ref<websocket_state>(this)](bool ok) {});
-	}
-
-	void detail::websocket_state::send_frame(opcode op, const websocket::buffer buf, std::function<void(bool)> cb) {
-		if (clean_op(op) == opcode::text) {
-			std::string_view payload_sv(reinterpret_cast<const char*>(buf.data()), buf.size());
-			if (utf8_validator{}(payload_sv, utf8_mode) == utf8_validator::result::invalid) return cb(false);
-		}
-		std::pair<std::string, std::function<void(bool)>> data;
-		data.second = cb;
-		size_t header_len = 2 + 4;
-		if (buf.size_bytes() > std::numeric_limits<uint16_t>::max())
-			header_len += sizeof(uint64_t);
-		else if (buf.size_bytes() > 125)
-			header_len += sizeof(uint16_t);
-		data.first.resize(header_len + buf.size_bytes());
-		memcpy(data.first.data() + header_len, buf.data(), buf.size_bytes());
-		data.first[0] = static_cast<uint8_t>(op);
-		if (buf.size_bytes() > std::numeric_limits<uint16_t>::max()) {
-			data.first[1] = 127;
-			set_be<uint64_t>(data.first.data() + 2, buf.size_bytes());
-		} else if (buf.size_bytes() > 125) {
-			data.first[1] = 126;
-			set_be<uint16_t>(data.first.data() + 2, buf.size_bytes());
-		} else {
-			data.first[1] = buf.size_bytes();
-		}
-		data.first[1] |= 0x80;
-
-		auto masking_key = data.first.data() + header_len - 4;
-		std::uniform_int_distribution<unsigned short> dist(0, 255);
-		std::generate(masking_key, masking_key + 4, [dist]() mutable { return dist(g_random); });
-		for (size_t i = 0; i < buf.size_bytes(); i++) {
-			data.first[i + header_len] ^= masking_key[i % 4];
-		}
-		send_queue.emplace(std::move(data));
-		send_event.set();
-	}
-
 	void detail::websocket_state::raw_on_connect(int code) {
+		std::unique_lock lck{mtx};
 		state_transition(cs::handshake);
 		ref<websocket_state> state(this);
 		if (code != 0) {
@@ -361,11 +286,12 @@ namespace asyncpp::curl {
 				if (auto cb = state->on_open; cb) cb(CURLE_FUNCTION_NOT_FOUND);
 				co_return;
 			}
-			state->parser_data = std::move(buffer);
-			state->client.set_on_data_available([parent = state.get()](bool cancelled) { return parent->raw_on_data_available(cancelled); });
-			state->state_transition(cs::open);
 			if (auto cb = state->on_open; cb) cb(0);
-			state->try_parse_frame();
+			state->state_transition(cs::open);
+			state->parser_data = std::move(buffer);
+			// Dummy call to data event to process frames that might have been read together with the handshake
+			state->raw_on_data_available(false);
+			state->client.set_on_data_available([parent = state.get()](bool cancelled) { return parent->raw_on_data_available(cancelled); });
 			state->client.pause_receive(false);
 		}(state));
 		send_should_exit = false;
@@ -392,11 +318,14 @@ namespace asyncpp::curl {
 	}
 
 	void detail::websocket_state::raw_on_disconnect() {
+		std::unique_lock lck{mtx};
 		if (auto old = state_transition(cs::closed); old == cs::closed || old == cs::server_close) return;
 		if (auto cb = on_close; cb) cb(1006, "Connection lost");
 	}
 
 	tcp_client::callback_result detail::websocket_state::raw_on_data_available(bool cancelled) {
+		// Note: parser_data is never used outside this piece of code and raw_on_data_available is never called concurrently
+		//       since it runs on the curl executor, so we can afford to not lock here.
 		if (cancelled) {
 			raw_on_disconnect();
 			return tcp_client::callback_result::clear;
@@ -404,18 +333,17 @@ namespace asyncpp::curl {
 		auto old_size = parser_data.size();
 		parser_data.resize(old_size + 64 * 1024);
 		auto res = client.recv_raw(parser_data.data() + old_size, parser_data.size() - old_size);
-		if (res <= 0) {
+		if (res == 0) {
 			raw_on_disconnect();
 			return tcp_client::callback_result::clear;
+		} else if (res < 0) {
+			// No additional data
+			res = 0;
 		}
 		assert(res < (parser_data.size() - old_size));
 		parser_data.resize(old_size + res);
-		try_parse_frame();
-		return tcp_client::callback_result::none;
-	}
 
-	void detail::websocket_state::try_parse_frame() {
-		std::unique_lock lck{mtx};
+		// Parse the data if there's any
 		while (parser_data.size() >= parser_wanted_size) {
 			auto code = static_cast<opcode>(parser_data[0]);
 			bool is_masked = parser_data[1] & 0x80;
@@ -435,9 +363,11 @@ namespace asyncpp::curl {
 			parser_wanted_size = 2;
 			parser_data.erase(parser_data.begin(), parser_data.begin() + header_len + payload_len);
 		}
+		return tcp_client::callback_result::none;
 	}
 
 	void detail::websocket_state::handle_frame(opcode code, std::string payload) {
+		std::unique_lock lck{mtx};
 		if (auto s = con_state.load(); s == cs::closed || s == cs::server_close) return;
 
 		// RSV Bits should be zero
@@ -550,6 +480,72 @@ namespace asyncpp::curl {
 			if (utf8_validator{}(sv, utf8_mode, &last_valid) == utf8_validator::result::invalid) return close(1007, "Invalid utf8");
 			fragment_validate_offset += std::distance(sv.begin(), last_valid);
 		}
+	}
+
+	void detail::websocket_state::connect(const uri& url) {
+		std::unique_lock lck{mtx};
+		state_transition(cs::connect);
+		ref<websocket_state> state(this);
+		last_url = url;
+		client.connect(url.host(), url.port(), url.scheme() == "wss", [state](int result) mutable {
+			state->raw_on_connect(result);
+			state.reset();
+		});
+	}
+
+	void detail::websocket_state::close(uint16_t code, std::string_view reason) {
+		if (con_state == cs::closed || con_state == cs::client_close) return;
+		std::function<void(bool)> cb;
+		if (con_state == cs::server_close) {
+			// CLOSE frame was received
+			state_transition(cs::closed);
+			cb = [cb = on_close, code, reason = std::string(reason), state = ref<websocket_state>(this)](bool) {
+				if (cb) cb(code, reason);
+			};
+		} else {
+			cb = [state = ref<websocket_state>(this)](bool) {};
+		}
+		std::string payload;
+		payload.resize(sizeof(uint16_t) + reason.size());
+		set_be<uint16_t>(payload.data(), code);
+		std::memcpy(payload.data() + 2, reason.data(), reason.size());
+		send_frame(opcode::fin | opcode::close, as_bytes(payload), std::move(cb));
+	}
+
+	void detail::websocket_state::send_frame(opcode op, const websocket::buffer buf, std::function<void(bool)> cb) {
+		if (clean_op(op) == opcode::close && con_state == cs::open) {
+			// If we are the first to close, call on_close on disconnect/fin reply
+			state_transition(cs::client_close);
+		}
+		std::pair<std::string, std::function<void(bool)>> data;
+		data.second = cb;
+		size_t header_len = 2 + 4;
+		if (buf.size_bytes() > std::numeric_limits<uint16_t>::max())
+			header_len += sizeof(uint64_t);
+		else if (buf.size_bytes() > 125)
+			header_len += sizeof(uint16_t);
+		data.first.resize(header_len + buf.size_bytes());
+		memcpy(data.first.data() + header_len, buf.data(), buf.size_bytes());
+		data.first[0] = static_cast<uint8_t>(op);
+		if (buf.size_bytes() > std::numeric_limits<uint16_t>::max()) {
+			data.first[1] = 127;
+			set_be<uint64_t>(data.first.data() + 2, buf.size_bytes());
+		} else if (buf.size_bytes() > 125) {
+			data.first[1] = 126;
+			set_be<uint16_t>(data.first.data() + 2, buf.size_bytes());
+		} else {
+			data.first[1] = buf.size_bytes();
+		}
+		data.first[1] |= 0x80;
+
+		auto masking_key = data.first.data() + header_len - 4;
+		std::uniform_int_distribution<unsigned short> dist(0, 255);
+		std::generate(masking_key, masking_key + 4, [dist]() mutable { return dist(g_random); });
+		for (size_t i = 0; i < buf.size_bytes(); i++) {
+			data.first[i + header_len] ^= masking_key[i % 4];
+		}
+		send_queue.emplace(std::move(data));
+		send_event.set();
 	}
 
 } // namespace asyncpp::curl
