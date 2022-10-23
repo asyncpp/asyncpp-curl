@@ -223,7 +223,7 @@ namespace asyncpp::curl {
 	detail::websocket_state::cs detail::websocket_state::state_transition(cs newstate) {
 		auto old = con_state.exchange(newstate);
 		constexpr const char* states[] = {"init", "connect", "handshake", "open", "client_close", "server_close", "closed"};
-		if (client.handle().is_verbose())
+		if (client.get_handle().is_verbose())
 			printf("* curl::websocket %p statechange %s => %s\n", this, states[static_cast<uint32_t>(old)], states[static_cast<uint32_t>(newstate)]);
 		return old;
 	}
@@ -300,7 +300,7 @@ namespace asyncpp::curl {
 				while (true) {
 					auto element = state->send_queue.pop();
 					if (!element) {
-						co_await state->send_event.wait(&state->client.executor());
+						co_await state->send_event.wait(&state->client.get_executor());
 						state->send_event.reset();
 						break;
 					}
