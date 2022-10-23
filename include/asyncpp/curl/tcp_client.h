@@ -8,8 +8,8 @@
 namespace asyncpp::curl {
 	class executor;
 	class tcp_client {
-		curl::executor& m_executor;
-		curl::handle m_handle;
+		executor& m_executor;
+		handle m_handle;
 
 		std::recursive_mutex m_mtx;
 		bool m_is_connected;
@@ -31,8 +31,8 @@ namespace asyncpp::curl {
 		tcp_client(tcp_client&&) = delete;
 		tcp_client& operator=(tcp_client&&) = delete;
 
-		curl::executor& executor() noexcept { return m_executor; }
-		curl::handle& handle() noexcept { return m_handle; }
+		executor& get_executor() noexcept { return m_executor; }
+		handle& get_handle() noexcept { return m_handle; }
 
 		/**
 		 * \brief Connect to the given remote server
