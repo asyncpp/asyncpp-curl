@@ -1,23 +1,19 @@
 #pragma once
-#include <asyncpp/detail/std_import.h>
-#include <asyncpp/ref.h>
-#include <asyncpp/launch.h>
-
-#include <asyncpp/curl/exception.h>
-#include <asyncpp/curl/tcp_client.h>
-#include <asyncpp/curl/uri.h>
 #include <asyncpp/curl/util.h>
+#include <asyncpp/ref.h>
 
 #include <functional>
+#include <map>
 #include <span>
 
 namespace asyncpp::curl {
 	class executor;
+	class uri;
 	namespace detail {
 		struct websocket_state;
 		void refcounted_add_ref(const websocket_state* ptr) noexcept;
 		void refcounted_remove_ref(const websocket_state* ptr) noexcept;
-	}
+	} // namespace detail
 	class websocket {
 	public:
 		enum class opcode : uint8_t {
@@ -95,20 +91,12 @@ namespace asyncpp::curl {
 		send_frame(opcode::fin | (binary ? opcode::binary : opcode::text), data, std::move(cb));
 	}
 
-	inline void websocket::send_binary(buffer data, std::function<void(bool)> cb) {
-		send_frame(opcode::fin | opcode::binary, data, std::move(cb));
-	}
+	inline void websocket::send_binary(buffer data, std::function<void(bool)> cb) { send_frame(opcode::fin | opcode::binary, data, std::move(cb)); }
 
-	inline void websocket::send_text(std::string_view sv, std::function<void(bool)> cb) {
-		send_frame(opcode::fin | opcode::text, as_bytes(sv), std::move(cb));
-	}
+	inline void websocket::send_text(std::string_view sv, std::function<void(bool)> cb) { send_frame(opcode::fin | opcode::text, as_bytes(sv), std::move(cb)); }
 
-	inline void websocket::send_ping(buffer data, std::function<void(bool)> cb) {
-		send_frame(opcode::fin | opcode::ping, data, std::move(cb));
-	}
+	inline void websocket::send_ping(buffer data, std::function<void(bool)> cb) { send_frame(opcode::fin | opcode::ping, data, std::move(cb)); }
 
-	inline void websocket::send_pong(buffer data, std::function<void(bool)> cb) {
-		send_frame(opcode::fin | opcode::pong, data, std::move(cb));
-	}
+	inline void websocket::send_pong(buffer data, std::function<void(bool)> cb) { send_frame(opcode::fin | opcode::pong, data, std::move(cb)); }
 
 } // namespace asyncpp::curl

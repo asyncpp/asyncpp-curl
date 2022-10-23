@@ -31,10 +31,7 @@ namespace asyncpp::curl {
 		}
 		const std::string& fragment() const noexcept { return m_fragment; }
 
-		std::string path_query() const {
-			if(m_query.empty()) return m_path;
-			else return m_path + '?' + m_query;
-		}
+		std::string path_query() const { return m_query.empty() ? m_path : (m_path + '?' + m_query); }
 
 		void scheme(std::string str) { m_scheme = std::move(str); }
 		void scheme(std::string_view str) { m_scheme = std::string(str); }

@@ -72,8 +72,10 @@ namespace asyncpp::curl {
 				case 6:
 					if constexpr (m != mode::normal) return result::invalid;
 					if (++it == sv.end()) {
-						if constexpr (m == mode::normal || m == mode::strict) return result::valid_incomplete;
-						else return result::invalid;
+						if constexpr (m == mode::normal || m == mode::strict)
+							return result::valid_incomplete;
+						else
+							return result::invalid;
 					}
 					c = static_cast<unsigned char>(*it);
 					if ((c & 0xc0) != 0x80) return result::invalid;
@@ -82,8 +84,10 @@ namespace asyncpp::curl {
 				case 5:
 					if constexpr (m != mode::normal) return result::invalid;
 					if (++it == sv.end()) {
-						if constexpr (m == mode::normal || m == mode::strict) return result::valid_incomplete;
-						else return result::invalid;
+						if constexpr (m == mode::normal || m == mode::strict)
+							return result::valid_incomplete;
+						else
+							return result::invalid;
 					}
 					c = static_cast<unsigned char>(*it);
 					if ((c & 0xc0) != 0x80) return result::invalid;
@@ -91,8 +95,10 @@ namespace asyncpp::curl {
 					[[fallthrough]];
 				case 4:
 					if (++it == sv.end()) {
-						if constexpr (m == mode::normal || m == mode::strict) return result::valid_incomplete;
-						else return ((codepoint << 18) > 0x10FFFF) ? result::invalid : result::valid_incomplete;
+						if constexpr (m == mode::normal || m == mode::strict)
+							return result::valid_incomplete;
+						else
+							return ((codepoint << 18) > 0x10FFFF) ? result::invalid : result::valid_incomplete;
 					}
 					c = static_cast<unsigned char>(*it);
 					if ((c & 0xc0) != 0x80) return result::invalid;
@@ -100,8 +106,10 @@ namespace asyncpp::curl {
 					[[fallthrough]];
 				case 3:
 					if (++it == sv.end()) {
-						if constexpr (m == mode::normal || m == mode::strict) return result::valid_incomplete;
-						else return ((codepoint << 12) > 0x10FFFF) ? result::invalid : result::valid_incomplete;
+						if constexpr (m == mode::normal || m == mode::strict)
+							return result::valid_incomplete;
+						else
+							return ((codepoint << 12) > 0x10FFFF) ? result::invalid : result::valid_incomplete;
 					}
 					c = static_cast<unsigned char>(*it);
 					if ((c & 0xc0) != 0x80) return result::invalid;
@@ -109,8 +117,10 @@ namespace asyncpp::curl {
 					[[fallthrough]];
 				case 2:
 					if (++it == sv.end()) {
-						if constexpr (m == mode::normal || m == mode::strict) return result::valid_incomplete;
-						else return ((codepoint << 6) > 0x10FFFF) ? result::invalid : result::valid_incomplete;
+						if constexpr (m == mode::normal || m == mode::strict)
+							return result::valid_incomplete;
+						else
+							return ((codepoint << 6) > 0x10FFFF) ? result::invalid : result::valid_incomplete;
 					}
 					c = static_cast<unsigned char>(*it);
 					if ((c & 0xc0) != 0x80) return result::invalid;

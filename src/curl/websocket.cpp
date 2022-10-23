@@ -1,12 +1,14 @@
 #include <asyncpp/curl/base64.h>
+#include <asyncpp/curl/exception.h>
 #include <asyncpp/curl/executor.h>
 #include <asyncpp/curl/sha1.h>
+#include <asyncpp/curl/tcp_client.h>
+#include <asyncpp/curl/uri.h>
 #include <asyncpp/curl/websocket.h>
 
 #include <asyncpp/event.h>
 #include <asyncpp/generator.h>
 #include <asyncpp/launch.h>
-#include <asyncpp/sync_wait.h>
 #include <asyncpp/task.h>
 #include <asyncpp/threadsafe_queue.h>
 
@@ -74,7 +76,7 @@ namespace asyncpp::curl {
 			websocket_state(executor& e) noexcept : client(e) {}
 
 			mutable thread_safe_refcount m_refcount{0};
-			std::mutex mtx;
+			std::recursive_mutex mtx;
 			tcp_client client;
 
 			// Handshake info
@@ -97,15 +99,10 @@ namespace asyncpp::curl {
 			std::string fragment_payload;
 			size_t fragment_validate_offset = 0;
 
-			enum class cs { connect, handshake, open, client_close, server_close, closed };
-			std::atomic<cs> con_state;
+			enum class cs { init, connect, handshake, open, client_close, server_close, closed };
+			std::atomic<cs> con_state{cs::init};
 
-			cs state_transition(cs newstate) {
-				auto old = con_state.exchange(newstate);
-				constexpr const char* states[] = {"connect", "handshake", "open", "client_close", "server_close", "closed"};
-				std::cout << states[static_cast<uint32_t>(old)] << " => " << states[static_cast<uint32_t>(newstate)] << std::endl;
-				return old;
-			}
+			cs state_transition(cs newstate);
 
 			std::atomic<utf8_validator::mode> utf8_mode{utf8_validator::mode::pedantic};
 
@@ -135,8 +132,6 @@ namespace asyncpp::curl {
 			void close(uint16_t code, std::string_view reason);
 			void close_raw(uint16_t code, std::string_view reason);
 			void send_frame(opcode op, const websocket::buffer buf, std::function<void(bool)> cb);
-
-			void push(std::function<void()> cb) { client.executor().push(std::move(cb)); }
 		};
 
 		void refcounted_add_ref(const websocket_state* ptr) noexcept {
@@ -182,7 +177,6 @@ namespace asyncpp::curl {
 		state_transition(cs::connect);
 		ref<websocket_state> state(this);
 		last_url = url;
-		//client.handle().set_verbose(true);
 		client.connect(url.host(), url.port(), url.scheme() == "wss", [state](int result) mutable {
 			state->raw_on_connect(result);
 			state.reset();
@@ -230,10 +224,18 @@ namespace asyncpp::curl {
 
 	void websocket::send_frame(opcode op, buffer data, std::function<void(bool)> cb) {
 		if (m_state->con_state != detail::websocket_state::cs::open) {
-			if (cb) m_state->push([cb = std::move(cb), state = m_state]() { cb(false); });
+			if (cb) cb(false);
 			return;
 		}
 		m_state->send_frame(op, data, std::move(cb));
+	}
+
+	detail::websocket_state::cs detail::websocket_state::state_transition(cs newstate) {
+		auto old = con_state.exchange(newstate);
+		constexpr const char* states[] = {"init", "connect", "handshake", "open", "client_close", "server_close", "closed"};
+		if (client.handle().is_verbose())
+			printf("* curl::websocket %p statechange %s => %s\n", this, states[static_cast<uint32_t>(old)], states[static_cast<uint32_t>(newstate)]);
+		return old;
 	}
 
 	void detail::websocket_state::close(uint16_t code, std::string_view reason) {
@@ -251,12 +253,11 @@ namespace asyncpp::curl {
 			set_be<uint16_t>(payload.data(), code);
 			std::memcpy(payload.data() + 2, reason.data(), reason.size());
 			send_frame(opcode::fin | opcode::close, as_bytes(payload), [cb = std::move(cb)](bool ok) { cb(); });
-
 		} else {
 			// Otherwise we call on_close on disconnect/fin reply
 			state_transition(cs::client_close);
+			this->close_raw(code, reason);
 		}
-		this->close_raw(code, reason);
 	}
 
 	void detail::websocket_state::close_raw(uint16_t code, std::string_view reason) {
@@ -307,7 +308,7 @@ namespace asyncpp::curl {
 		state_transition(cs::handshake);
 		ref<websocket_state> state(this);
 		if (code != 0) {
-			if (on_open) client.executor().push([state, code]() { state->on_open(code); });
+			if (auto cb = on_open; cb) cb(code);
 			return;
 		}
 
@@ -354,20 +355,18 @@ namespace asyncpp::curl {
 				if (status_code != 101 || accept_it == state->response_headers.end() || state->handshake_nonce != accept_it->second)
 					throw exception(CURLE_HTTP_RETURNED_ERROR);
 			} catch (const exception& e) {
-				if (state->on_open) state->client.executor().push([cb = state->on_open, code = e.code()]() { cb(code); });
+				if (auto cb = state->on_open; cb) cb(e.code());
 				co_return;
 			} catch (...) {
-				if (state->on_open) state->client.executor().push([cb = state->on_open]() { cb(CURLE_FUNCTION_NOT_FOUND); });
+				if (auto cb = state->on_open; cb) cb(CURLE_FUNCTION_NOT_FOUND);
 				co_return;
 			}
 			state->parser_data = std::move(buffer);
 			state->client.set_on_data_available([parent = state.get()](bool cancelled) { return parent->raw_on_data_available(cancelled); });
-			state->client.executor().push([state]() {
-				state->state_transition(cs::open);
-				if (state->on_open) state->on_open(0);
-				state->try_parse_frame();
-				state->client.pause_receive(false);
-			});
+			state->state_transition(cs::open);
+			if (auto cb = state->on_open; cb) cb(0);
+			state->try_parse_frame();
+			state->client.pause_receive(false);
 		}(state));
 		send_should_exit = false;
 		async_scope.launch([](ref<detail::websocket_state> state) -> task<void> {
@@ -375,22 +374,18 @@ namespace asyncpp::curl {
 				while (true) {
 					auto element = state->send_queue.pop();
 					if (!element) {
-						co_await state->send_event;
+						co_await state->send_event.wait(&state->client.executor());
 						state->send_event.reset();
 						break;
 					}
 					auto res = co_await state->client.send_all(element->first.data(), element->first.size());
-					if (element->second) {
-						state->push([ok = res == element->first.size(), cb = std::move(element->second)]() { cb(ok); });
-					}
+					if (element->second) element->second(res == element->first.size());
 				}
 			}
 			while (true) {
 				auto e = state->send_queue.pop();
 				if (!e) break;
-				if (e->second) {
-					state->push([cb = std::move(e->second)]() { cb(false); });
-				}
+				if (e->second) e->second(false);
 			}
 			if (state->client.is_connected()) co_await state->client.disconnect();
 		}(state));
@@ -398,8 +393,7 @@ namespace asyncpp::curl {
 
 	void detail::websocket_state::raw_on_disconnect() {
 		if (auto old = state_transition(cs::closed); old == cs::closed || old == cs::server_close) return;
-		if (client.handle().is_verbose()) std::cout << __PRETTY_FUNCTION__ << " on_close()" << std::endl;
-		if (on_close) push([cb = on_close, state = ref<websocket_state>(this)]() { cb(1006, "Connection lost"); });
+		if (auto cb = on_close; cb) cb(1006, "Connection lost");
 	}
 
 	tcp_client::callback_result detail::websocket_state::raw_on_data_available(bool cancelled) {
@@ -470,7 +464,7 @@ namespace asyncpp::curl {
 
 		if (con_state == cs::client_close) {
 			// This is a reply to client initiated close
-			if (on_close) push([cb = on_close, code, reason = std::string(reason), state = ref<websocket_state>(this)]() { cb(code, reason); });
+			if (auto cb = on_close; cb) cb(code, reason);
 			state_transition(cs::closed);
 			return;
 		} else {
@@ -492,8 +486,8 @@ namespace asyncpp::curl {
 	void detail::websocket_state::handle_ping_frame(opcode op, std::string payload) {
 		// Control frames may never be fragmented or have multibyte length
 		if (!(op & opcode::fin) || payload.size() > 125) { return this->close(1002, "Protocol error"); }
-		if (on_ping)
-			push([cb = on_ping, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload)); });
+		if (auto cb = on_ping; cb)
+			cb(as_bytes(payload));
 		else
 			this->send_frame(opcode::fin | opcode::pong, as_bytes(payload), [state = ref<websocket_state>(this)](bool) {});
 	}
@@ -501,7 +495,7 @@ namespace asyncpp::curl {
 	void detail::websocket_state::handle_pong_frame(opcode op, std::string payload) {
 		// Control frames may never be fragmented or have multibyte length
 		if (!(op & opcode::fin) || payload.size() > 125) { return this->close(1002, "Protocol error"); }
-		if (on_pong) push([cb = on_pong, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload)); });
+		if (auto cb = on_pong; cb) cb(as_bytes(payload));
 	}
 
 	void detail::websocket_state::handle_text_frame(opcode op, std::string payload) {
@@ -517,7 +511,7 @@ namespace asyncpp::curl {
 			fragment_validate_offset = std::distance(sv.begin(), last_valid);
 		} else { // Unfragmented message
 			if (utf8_validator{}(payload, utf8_mode) != utf8_validator::result::valid) return close(1007, "Invalid utf8");
-			if (on_message) push([cb = on_message, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload), false); });
+			if (auto cb = on_message; cb) cb(as_bytes(payload), false);
 		}
 	}
 
@@ -530,7 +524,7 @@ namespace asyncpp::curl {
 			fragment_payload = std::move(payload);
 			fragment_validate_offset = 0;
 		} else { // Unfragmented message
-			if (on_message) push([cb = on_message, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload), true); });
+			if (auto cb = on_message; cb) cb(as_bytes(payload), true);
 		}
 	}
 
@@ -547,8 +541,7 @@ namespace asyncpp::curl {
 				sv.remove_prefix(fragment_validate_offset);
 				if (utf8_validator{}(sv, utf8_mode) != utf8_validator::result::valid) return close(1007, "Invalid utf8");
 			}
-			if (on_message)
-				push([cb = on_message, binary, payload = std::move(payload), state = ref<websocket_state>(this)]() { cb(as_bytes(payload), binary); });
+			if (auto cb = on_message; cb) cb(as_bytes(payload), binary);
 		} else if (fragment_code != opcode::binary) {
 			// Fail fast if received utf8 causes invalid sequences
 			std::string_view sv{fragment_payload};

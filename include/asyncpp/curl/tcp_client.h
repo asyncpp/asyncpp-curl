@@ -30,7 +30,7 @@ namespace asyncpp::curl {
 
 		enum class callback_result : uint32_t {
 			none = 0,
-			/** \brief Pause receiving data, you can use pause_receive(bool) to unpause the receiving again. */ 
+			/** \brief Pause receiving data, you can use pause_receive(bool) to unpause the receiving again. */
 			pause = 1,
 			/** \brief Clear the callback. Receiving will be pause and your callback is cleared. */
 			clear = 2,
@@ -65,7 +65,6 @@ namespace asyncpp::curl {
 		 * \param paused true => Receiving is paused, false => Data is received
 		 */
 		void pause_receive(bool paused);
-
 
 		/**
 		 * \brief Connect to the given remote server
@@ -260,7 +259,7 @@ namespace asyncpp::curl {
 			};
 			return awaiter{this, buffer, size};
 		}
-	
+
 	private:
 		curl::executor& m_executor;
 		curl::handle m_handle;

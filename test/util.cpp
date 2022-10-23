@@ -118,7 +118,8 @@ namespace {
 		 result::valid, result::valid, result::valid, result::invalid},
 
 		// Other
-		{"\xce\xba\xe1\xbd\xb9\xcf\x83\xce\xbc\xce\xb5\xf4\x90\x80\x80\x65\x64\x69\x74\x65\x64", result::valid, result::valid, result::invalid, result::invalid},
+		{"\xce\xba\xe1\xbd\xb9\xcf\x83\xce\xbc\xce\xb5\xf4\x90\x80\x80\x65\x64\x69\x74\x65\x64", result::valid, result::valid, result::invalid,
+		 result::invalid},
 	};
 
 } // namespace
