@@ -23,8 +23,8 @@ namespace asyncpp::curl {
 		tcp_client(tcp_client&&) = delete;
 		tcp_client& operator=(tcp_client&&) = delete;
 
-		executor& executor() noexcept { return m_executor; }
-		handle& handle() noexcept { return m_handle; }
+		executor& get_executor() noexcept { return m_executor; }
+		handle& get_handle() noexcept { return m_handle; }
 
 		bool is_connected() const noexcept;
 
