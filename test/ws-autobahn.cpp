@@ -17,7 +17,7 @@ using namespace asyncpp::curl;
 promise<std::pair<std::string, bool>> read_message(websocket* ws) {
 	dispatcher* const main_dp = dispatcher::current();
 	promise<std::pair<std::string, bool>> res;
-	ws->set_on_open([=](int code) {
+	ws->set_on_open([=](int code) mutable {
 		main_dp->push([code, res]() mutable {
 			if (code != 0) res.try_reject<exception>(code);
 		});
@@ -30,7 +30,7 @@ promise<std::pair<std::string, bool>> read_message(websocket* ws) {
 		ws->set_on_close({});
 		main_dp->push([p = std::move(p), res]() mutable { res.try_fulfill(std::move(p)); });
 	});
-	ws->set_on_close([=](int, std::string_view) {
+	ws->set_on_close([=](int, std::string_view) mutable {
 		ws->set_on_message({});
 		ws->set_on_close({});
 		main_dp->push([res]() mutable { res.try_reject<std::runtime_error>("disconnected"); });
@@ -63,7 +63,7 @@ task<int> async_main(int argc, const char** argv) {
 		socket.set_on_open([i, ncases](int code) { std::cout << "Test case " << i << "/" << ncases << " ... " << std::flush; });
 		socket.set_on_message([&socket](websocket::buffer data, bool binary) { socket.send(data, binary, [](bool) {}); });
 		promise<bool> res;
-		socket.set_on_close([i, ncases, res, main_dp](uint16_t code, std::string_view reason) {
+		socket.set_on_close([i, ncases, res, main_dp](uint16_t code, std::string_view reason) mutable {
 			std::cout << "finished (code=" << code << ", reason=\"" << reason << "\")" << std::endl;
 			main_dp->push([res]() mutable { res.fulfill({}); });
 		});
