@@ -22,7 +22,7 @@ env:
 
 jobs:
   min-req:
-    runs-on: ${{ env.RUN_ON }}
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - name: Cache CMake
@@ -30,7 +30,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: cmake-${{ env.CMAKE_VERSION }}
-          key: ${{ env.RUN_ON }}-${{ github.job }}-cmake-${{ env.CMAKE_VERSION }}
+          key: ubuntu-20.04-${{ github.job }}-cmake-${{ env.CMAKE_VERSION }}
       - name: Build cmake
         if: steps.cache-cmake.outputs.cache-hit != 'true'
         run: |
