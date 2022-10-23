@@ -75,10 +75,10 @@ if(ASYNCPP_BUILD_TEST)
 
   gtest_discover_tests(asyncpp_curl-test)
 
-  add_executable(
-    asyncpp_curl-ws-autobahn
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/ws-autobahn.cpp)
-  target_link_libraries(asyncpp_curl-ws-autobahn PRIVATE asyncpp_curl Threads::Threads)
+  add_executable(asyncpp_curl-ws-autobahn
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test/ws-autobahn.cpp)
+  target_link_libraries(asyncpp_curl-ws-autobahn PRIVATE asyncpp_curl
+                                                         Threads::Threads)
 
   if(ASYNCPP_WITH_ASAN)
     target_compile_options(asyncpp_curl-ws-autobahn PRIVATE -fsanitize=address)
