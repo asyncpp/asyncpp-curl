@@ -8,14 +8,6 @@
 namespace asyncpp::curl {
 	class executor;
 	class tcp_client {
-		executor& m_executor;
-		handle m_handle;
-
-		std::recursive_mutex m_mtx;
-		bool m_is_connected;
-		std::function<size_t(bool)> m_send_handler;
-		std::function<size_t(bool)> m_recv_handler;
-
 	public:
 		/**
 		 * \brief Construct a new tcp client
@@ -33,6 +25,46 @@ namespace asyncpp::curl {
 
 		executor& get_executor() noexcept { return m_executor; }
 		handle& get_handle() noexcept { return m_handle; }
+
+		bool is_connected() const noexcept;
+
+		enum class callback_result : uint32_t {
+			none = 0,
+			/** \brief Pause receiving data, you can use pause_receive(bool) to unpause the receiving again. */
+			pause = 1,
+			/** \brief Clear the callback. Receiving will be pause and your callback is cleared. */
+			clear = 2,
+		};
+
+		/**
+		 * \brief Set a callback to be invoked when data for reading is availble on the socket.
+		 * 
+		 * Use recv_raw to retrieve (some) of the data.
+		 * The callback is passed a bool which gets set to true if the socket was disconnected.
+		 * The return value is a bitset of callback_result and can be used to pause and clear the callback if necessary.
+		 * \note It is not possible to use set_on_data_available() and recv()/recv_all() concurrently.
+		 * \note There might not be data available even if this callback is invoked, you need to check the result of recv_raw().
+		 * \note The only recv call valid inside the callback is recv_raw().
+		 * 
+		 * \param cb The callback to invoke when data is ready.
+		 */
+		void set_on_data_available(std::function<callback_result(bool)> cb);
+
+		/**
+		 * \brief Receive data
+		 * \param buffer Buffer to read data into
+		 * \param buflen Size of the buffer to read into
+		 * \return ssize_t Number of bytes read, or
+		 *			- -1 if no data is available (EAGAIN)
+		 *			- 0 if the connection was closed
+		 */
+		ssize_t recv_raw(void* buffer, size_t buflen);
+
+		/**
+		 * \brief Pause or unpause the receiving of data.
+		 * \param paused true => Receiving is paused, false => Data is received
+		 */
+		void pause_receive(bool paused);
 
 		/**
 		 * \brief Connect to the given remote server
@@ -227,5 +259,24 @@ namespace asyncpp::curl {
 			};
 			return awaiter{this, buffer, size};
 		}
+
+	private:
+		curl::executor& m_executor;
+		curl::handle m_handle;
+
+		mutable std::recursive_mutex m_mtx;
+		bool m_is_connected;
+		std::function<callback_result(bool)> m_send_handler;
+		std::function<callback_result(bool)> m_recv_handler;
 	};
+
+	inline constexpr tcp_client::callback_result operator|(tcp_client::callback_result lhs, tcp_client::callback_result rhs) noexcept {
+		return static_cast<tcp_client::callback_result>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
+	}
+
+	inline constexpr tcp_client::callback_result operator&(tcp_client::callback_result lhs, tcp_client::callback_result rhs) noexcept {
+		return static_cast<tcp_client::callback_result>(static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs));
+	}
+
+	inline constexpr bool operator!(tcp_client::callback_result lhs) noexcept { return lhs == tcp_client::callback_result::none; }
 } // namespace asyncpp::curl

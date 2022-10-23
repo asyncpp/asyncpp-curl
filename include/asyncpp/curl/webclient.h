@@ -1,6 +1,7 @@
 #pragma once
 #include <asyncpp/curl/cookie.h>
 #include <asyncpp/curl/uri.h>
+#include <asyncpp/curl/util.h>
 #include <asyncpp/detail/std_import.h>
 #include <cctype>
 #include <chrono>
@@ -12,18 +13,6 @@
 
 namespace asyncpp::curl {
 	class executor;
-
-	struct case_insensitive_less {
-		bool operator()(const std::string& lhs, const std::string& rhs) const noexcept {
-			auto it1 = lhs.begin();
-			auto it2 = rhs.begin();
-			while (it1 != lhs.begin() && it2 != rhs.end() && std::tolower(*it1) == std::tolower(*it2)) {
-				it1++;
-				it2++;
-			}
-			return (it1 == lhs.end() || (std::tolower(*it1) - std::tolower(*it2)) < 0);
-		}
-	};
 
 	struct http_response {
 		struct ignore_body {};
