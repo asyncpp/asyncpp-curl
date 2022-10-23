@@ -34,8 +34,8 @@ jobs:
       - name: Build cmake
         if: steps.cache-cmake.outputs.cache-hit != 'true'
         run: |
-          wget ${{ env.CMAKE_URL }}.tar.gz
-          tar -zxf cmake-${{ env.CMAKE_VERSION }}
+          wget ${{ env.CMAKE_URL }}
+          tar -zxf cmake-${{ env.CMAKE_VERSION }}.tar.gz
           cd cmake-${{ env.CMAKE_VERSION }}
           ./bootstrap
           make -j $(nproc)
