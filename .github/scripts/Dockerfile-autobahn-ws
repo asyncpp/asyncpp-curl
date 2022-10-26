@@ -1,0 +1,5 @@
+# docker build -f Dockerfile-autobahn-ws -t ghcr.io/asyncpp/autobahn-testsuite-server:latest .
+# docker push ghcr.io/asyncpp/autobahn-testsuite-server:latest
+
+FROM crossbario/autobahn-testsuite
+CMD ["wstest", "--mode", "fuzzingserver"]

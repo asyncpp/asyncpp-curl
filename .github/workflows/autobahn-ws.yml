@@ -36,8 +36,7 @@ jobs:
           cat results.json
     services:
       autobahn-ws:
-        image: crossbario/autobahn-testsuite
+        image: ghcr.io/asyncpp/autobahn-testsuite-server
         ports:
           - 9001:9001
           - 8080:8080
-        options: "wstest --mode fuzzingserver"
