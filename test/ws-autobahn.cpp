@@ -61,10 +61,7 @@ task<int> async_main(int argc, const char** argv) {
 	for (size_t i = argc > 2 ? ncases : 1; i <= ncases; i++) {
 		websocket socket;
 		socket.set_on_open([i, ncases](int code) { std::cout << "Test case " << i << "/" << ncases << " ... " << std::flush; });
-		socket.set_on_message([&socket, i](websocket::buffer data, bool binary) {
-			if(i%2) socket.send(websocket::buffer(data.data(), std::max<size_t>(data.size(), 1)-1), binary, [](bool) {});
-			else socket.send(data, binary, [](bool) {});
-		});
+		socket.set_on_message([&socket](websocket::buffer data, bool binary) { socket.send(data, binary, [](bool) {}); });
 		promise<bool> res;
 		socket.set_on_close([i, ncases, res, main_dp](uint16_t code, std::string_view reason) mutable {
 			std::cout << "finished (code=" << code << ", reason=\"" << reason << "\")" << std::endl;
