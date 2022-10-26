@@ -9,6 +9,7 @@ on:
       - "CMakeLists.txt"
       - "cmake/**"
       - "include/**"
+      - "src/**"
       - "test/**"
       - ".github/actions/**"
       - ".github/workflows/cmake.yml"
