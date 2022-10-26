@@ -31,9 +31,7 @@ jobs:
       - name: Test
         run: ./asyncpp_curl-ws-autobahn ws://127.0.0.1:9001
       - name: Analyze result
-        run: |
-          wget http://localhost:8080/cwd/reports/clients/index.json -O results.json
-          cat results.json
+        run: php ./.github/scripts/check-autobahn-result.php http://localhost:8080/cwd/reports/clients/index.json
     services:
       autobahn-ws:
         image: ghcr.io/asyncpp/autobahn-testsuite-server
