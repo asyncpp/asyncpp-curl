@@ -40,3 +40,4 @@ jobs:
         ports:
           - 9001:9001
           - 8080:8080
+        options: "wstest --mode fuzzingserver"
