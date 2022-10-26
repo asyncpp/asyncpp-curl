@@ -1,0 +1,38 @@
+name: Autobahn WS CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+    paths:
+      - "CMakeLists.txt"
+      - "cmake/**"
+      - "include/**"
+      - "src/**"
+      - "test/**"
+      - ".github/actions/**"
+      - ".github/workflows/autobahn-ws.yml"
+env:
+  CXX: /usr/bin/clang++-12
+  CC: /usr/bin/clang-12
+jobs:
+  autobahn-ws:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: lukka/get-cmake@latest
+      - uses: ./.github/actions/install/gtest
+      - uses: ./.github/actions/install/curl
+      - name: Configure
+        run: cmake . -DASYNCPP_BUILD_TEST=ON -G 'Unix Makefiles'
+      - name: Build
+        run: cmake --build . asyncpp_curl-ws-autobahn
+      - name: Test
+        run: ./asyncpp_curl-ws-autobahn ws://127.0.0.1:9001
+    services:
+      autobahn-ws:
+        image: crossbario/autobahn-testsuite
+        ports:
+          - 9001:9001
+          - 8080:8080
