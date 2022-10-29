@@ -1,7 +1,0 @@
-name: Install Curl
-description: Install and setup Curl for linking and building test application
-runs:
-  using: composite
-  steps:
-    - run: sudo apt-get update && sudo apt-get install libcurl4-openssl-dev
-      shell: bash

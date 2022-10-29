@@ -21,9 +21,6 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
-      - uses: lukka/get-cmake@latest
-      - uses: ./.github/actions/install/gtest
-      - uses: ./.github/actions/install/curl
       - name: Configure
         run: cmake . -DASYNCPP_BUILD_TEST=ON -G 'Unix Makefiles'
       - name: Build
