@@ -21,6 +21,7 @@ else()
     set(CURL_CA_PATH "auto" CACHE INTERNAL "")
     set(CURL_CA_BUNDLE "auto" CACHE INTERNAL "")
     set(CMAKE_USE_OPENSSL ON CACHE INTERNAL "" FORCE)
+    include(FetchContent)
     FetchContent_Declare(curl
                          URL                    https://github.com/curl/curl/releases/download/curl-7_80_0/curl-7.80.0.tar.xz
                          URL_HASH               SHA256=a132bd93188b938771135ac7c1f3ac1d3ce507c1fcbef8c471397639214ae2ab # the file hash for curl-7.80.0.tar.xz
