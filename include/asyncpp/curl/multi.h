@@ -3,6 +3,11 @@
 #include <cstddef>
 #include <mutex>
 #include <span>
+#ifdef __linux__
+#include <sys/select.h>
+#elif _WIN32
+#include <winsock.h>
+#endif
 
 struct curl_waitfd;
 namespace asyncpp::curl {

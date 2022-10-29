@@ -349,14 +349,14 @@ namespace asyncpp::curl {
 			bool is_masked = parser_data[1] & 0x80;
 			uint64_t payload_len = parser_data[1] & 0x7f;
 			size_t header_len = 2 + (is_masked ? 4 : 0) + (payload_len >= 126 ? (payload_len == 127 ? 8 : 2) : 0);
-			parser_wanted_size = std::max(parser_wanted_size, header_len);
+			parser_wanted_size = (std::max)(parser_wanted_size, header_len);
 			if (parser_data.size() < parser_wanted_size) continue;
 			if (payload_len == 126) {
 				payload_len = get_be<uint16_t>(parser_data.data() + 2);
 			} else if (payload_len == 127) {
 				payload_len = get_be<uint64_t>(parser_data.data() + 2);
 			}
-			parser_wanted_size = std::max(parser_wanted_size, header_len + payload_len);
+			parser_wanted_size = (std::max)(parser_wanted_size, header_len + payload_len);
 			if (parser_data.size() < parser_wanted_size) continue;
 			uint32_t mask = is_masked ? get_be<uint32_t>(parser_data.data() + header_len - 4) : 0;
 			handle_frame(code, parser_data.substr(header_len, payload_len));
@@ -520,14 +520,14 @@ namespace asyncpp::curl {
 		std::pair<std::string, std::function<void(bool)>> data;
 		data.second = cb;
 		size_t header_len = 2 + 4;
-		if (buf.size_bytes() > std::numeric_limits<uint16_t>::max())
+		if (buf.size_bytes() > (std::numeric_limits<uint16_t>::max)())
 			header_len += sizeof(uint64_t);
 		else if (buf.size_bytes() > 125)
 			header_len += sizeof(uint16_t);
 		data.first.resize(header_len + buf.size_bytes());
 		memcpy(data.first.data() + header_len, buf.data(), buf.size_bytes());
 		data.first[0] = static_cast<uint8_t>(op);
-		if (buf.size_bytes() > std::numeric_limits<uint16_t>::max()) {
+		if (buf.size_bytes() > (std::numeric_limits<uint16_t>::max)()) {
 			data.first[1] = 127;
 			set_be<uint64_t>(data.first.data() + 2, buf.size_bytes());
 		} else if (buf.size_bytes() > 125) {

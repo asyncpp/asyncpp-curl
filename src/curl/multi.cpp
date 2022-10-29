@@ -5,9 +5,11 @@
 #include <curl/curl.h>
 #include <curl/multi.h>
 #include <mutex>
+#ifdef __linux__
 #include <unistd.h>
 #if LIBCURL_VERSION_NUM < 0x074400
 #include <sys/eventfd.h>
+#endif
 #endif
 
 namespace asyncpp::curl {

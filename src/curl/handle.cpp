@@ -158,7 +158,7 @@ namespace asyncpp::curl {
 		size_t pos = 0;
 		set_readfunction([&str, pos](char* ptr, size_t size) mutable -> size_t {
 			if (size == 0 || str.size() == pos) return 0;
-			auto read = std::min(size, str.size() - pos);
+			auto read = (std::min)(size, str.size() - pos);
 			memcpy(ptr, str.data() + pos, read);
 			pos += read;
 			return read;
@@ -247,7 +247,7 @@ namespace asyncpp::curl {
 #endif
 	}
 
-	ssize_t handle::recv(void* buffer, size_t buflen) {
+	std::ptrdiff_t handle::recv(void* buffer, size_t buflen) {
 		std::scoped_lock lck{m_mtx};
 		size_t read{};
 		auto res = curl_easy_recv(m_instance, buffer, buflen, &read);
@@ -256,7 +256,7 @@ namespace asyncpp::curl {
 		return read;
 	}
 
-	ssize_t handle::send(const void* buffer, size_t buflen) {
+	std::ptrdiff_t handle::send(const void* buffer, size_t buflen) {
 		std::scoped_lock lck{m_mtx};
 		size_t sent{};
 		auto res = curl_easy_send(m_instance, buffer, buflen, &sent);

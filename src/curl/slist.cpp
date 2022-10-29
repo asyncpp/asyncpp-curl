@@ -1,5 +1,6 @@
 #include <asyncpp/curl/slist.h>
 #include <utility>
+#include <new>
 
 namespace asyncpp::curl {
 

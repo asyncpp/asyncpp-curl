@@ -27,7 +27,7 @@ namespace asyncpp::curl {
 		m_recv_handler = cb;
 	}
 
-	ssize_t tcp_client::recv_raw(void* buffer, size_t buflen) {
+	std::ptrdiff_t tcp_client::recv_raw(void* buffer, size_t buflen) {
 		std::unique_lock lck{m_mtx};
 		return m_handle.recv(buffer, buflen);
 	}
