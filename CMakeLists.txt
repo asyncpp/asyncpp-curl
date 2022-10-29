@@ -21,7 +21,11 @@ else()
     set(BUILD_TESTING OFF)
     set(CURL_CA_PATH "auto" CACHE INTERNAL "")
     set(CURL_CA_BUNDLE "auto" CACHE INTERNAL "")
-    set(CMAKE_USE_OPENSSL ON CACHE INTERNAL "" FORCE)
+    if(WIN32)
+      set(CMAKE_USE_SCHANNEL ON CACHE INTERNAL "" FORCE)
+    else()
+      set(CMAKE_USE_OPENSSL ON CACHE INTERNAL "" FORCE)
+    endif()
     include(FetchContent)
     FetchContent_Declare(curl
                          URL                    https://github.com/curl/curl/releases/download/curl-7_80_0/curl-7.80.0.tar.xz
