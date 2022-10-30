@@ -16,21 +16,21 @@ namespace asyncpp::curl {
 		const auto end = data.data() + data.size();
 		auto in = data.data();
 		while (end - in >= 3) {
-			*out++ = base64_table[in[0] >> 2];
-			*out++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
-			*out++ = base64_table[((in[1] & 0x0f) << 2) | (in[2] >> 6)];
-			*out++ = base64_table[in[2] & 0x3f];
+			*out++ = base64_table[static_cast<uint8_t>(in[0]) >> 2];
+			*out++ = base64_table[((static_cast<uint8_t>(in[0]) & 0x03) << 4) | (static_cast<uint8_t>(in[1]) >> 4)];
+			*out++ = base64_table[((static_cast<uint8_t>(in[1]) & 0x0f) << 2) | (static_cast<uint8_t>(in[2]) >> 6)];
+			*out++ = base64_table[static_cast<uint8_t>(in[2]) & 0x3f];
 			in += 3;
 		}
 
 		if (end - in) {
-			*out++ = base64_table[in[0] >> 2];
+			*out++ = base64_table[static_cast<uint8_t>(in[0]) >> 2];
 			if (end - in == 1) {
-				*out++ = base64_table[(in[0] & 0x03) << 4];
+				*out++ = base64_table[(static_cast<uint8_t>(in[0]) & 0x03) << 4];
 				*out++ = '=';
 			} else {
-				*out++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
-				*out++ = base64_table[(in[1] & 0x0f) << 2];
+				*out++ = base64_table[((static_cast<uint8_t>(in[0]) & 0x03) << 4) | (static_cast<uint8_t>(in[1]) >> 4)];
+				*out++ = base64_table[(static_cast<uint8_t>(in[1]) & 0x0f) << 2];
 			}
 			*out++ = '=';
 		}
