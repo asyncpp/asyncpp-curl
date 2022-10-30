@@ -13,6 +13,7 @@
 
 namespace asyncpp::curl {
 	class executor;
+	class handle;
 
 	struct http_response {
 		struct ignore_body {};
@@ -53,6 +54,10 @@ namespace asyncpp::curl {
 		std::chrono::milliseconds timeout{0};
 		/** \brief Timeout for connecting (namelookup, proxy handling, connect), set to 0 to disable */
 		std::chrono::milliseconds timeout_connect = std::chrono::seconds{30};
+		/** \brief Hook executed right before performing the request. Can be used to set custom curl options if needed. */
+		std::function<void(handle&)> configure_hook;
+		/** \brief Hook executed right after performing the request. Can be used to read custom curl info if needed. */
+		std::function<void(handle&)> result_hook;
 
 		static http_request make_get(uri url);
 		static http_request make_head(uri url);

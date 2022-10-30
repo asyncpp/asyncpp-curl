@@ -5,6 +5,11 @@
 #include <asyncpp/curl/executor.h>
 #include <asyncpp/curl/handle.h>
 #include <asyncpp/curl/multi.h>
+#include <asyncpp/curl/sha1.h>
 #include <asyncpp/curl/slist.h>
+#include <asyncpp/curl/tcp_client.h>
 #include <asyncpp/curl/uri.h>
+#include <asyncpp/curl/util.h>
+#include <asyncpp/curl/version.h>
 #include <asyncpp/curl/webclient.h>
+#include <asyncpp/curl/websocket.h>
