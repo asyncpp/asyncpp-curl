@@ -7,8 +7,8 @@
 #include <mutex>
 #if LIBCURL_VERSION_NUM < 0x074400
 #ifdef __linux__
-#include <unistd.h>
 #include <sys/eventfd.h>
+#include <unistd.h>
 #else
 #error "Unsupported os / curl combination"
 #endif

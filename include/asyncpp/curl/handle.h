@@ -1,10 +1,10 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
 #include <mutex>
 #include <string>
-#include <cstddef>
 
 namespace asyncpp::curl {
 	class multi;

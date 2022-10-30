@@ -2,8 +2,8 @@
 #include <asyncpp/curl/exception.h>
 #include <asyncpp/curl/handle.h>
 #include <asyncpp/detail/std_import.h>
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <mutex>
 
 namespace asyncpp::curl {

@@ -15,22 +15,40 @@ else()
   find_package(CURL)
   if(NOT CURL)
     # We only need HTTP (and HTTPS) support:
-    set(HTTP_ONLY ON CACHE INTERNAL "" FORCE)
-    set(BUILD_CURL_EXE OFF CACHE INTERNAL "" FORCE)
-    set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
+    set(HTTP_ONLY
+        ON
+        CACHE INTERNAL "" FORCE)
+    set(BUILD_CURL_EXE
+        OFF
+        CACHE INTERNAL "" FORCE)
+    set(BUILD_SHARED_LIBS
+        OFF
+        CACHE INTERNAL "" FORCE)
     set(BUILD_TESTING OFF)
-    set(CURL_CA_PATH "auto" CACHE INTERNAL "")
-    set(CURL_CA_BUNDLE "auto" CACHE INTERNAL "")
+    set(CURL_CA_PATH
+        "auto"
+        CACHE INTERNAL "")
+    set(CURL_CA_BUNDLE
+        "auto"
+        CACHE INTERNAL "")
     if(WIN32)
-      set(CMAKE_USE_SCHANNEL ON CACHE INTERNAL "" FORCE)
+      set(CMAKE_USE_SCHANNEL
+          ON
+          CACHE INTERNAL "" FORCE)
     else()
-      set(CMAKE_USE_OPENSSL ON CACHE INTERNAL "" FORCE)
+      set(CMAKE_USE_OPENSSL
+          ON
+          CACHE INTERNAL "" FORCE)
     endif()
     include(FetchContent)
-    FetchContent_Declare(curl
-                         URL                    https://github.com/curl/curl/releases/download/curl-7_80_0/curl-7.80.0.tar.xz
-                         URL_HASH               SHA256=a132bd93188b938771135ac7c1f3ac1d3ce507c1fcbef8c471397639214ae2ab # the file hash for curl-7.80.0.tar.xz
-                         USES_TERMINAL_DOWNLOAD TRUE)
+    FetchContent_Declare(
+      curl
+      URL https://github.com/curl/curl/releases/download/curl-7_80_0/curl-7.80.0.tar.xz
+      URL_HASH
+        SHA256=a132bd93188b938771135ac7c1f3ac1d3ce507c1fcbef8c471397639214ae2ab # the file
+                                                                                # hash for
+                                                                                # curl-7.80.0.tar.xz
+      USES_TERMINAL_DOWNLOAD TRUE)
     FetchContent_MakeAvailable(curl)
     set_property(TARGET libcurl PROPERTY FOLDER "external")
     message(STATUS "Building libcurl using FetchContent")
@@ -73,10 +91,8 @@ if(ASYNCPP_WITH_ASAN)
   message(STATUS "Building with asan enabled")
   if(MSVC)
     target_compile_options(asyncpp_curl PRIVATE -fsanitize=address /Zi)
-    target_compile_definitions(asyncpp_curl
-                              PRIVATE _DISABLE_VECTOR_ANNOTATION)
-    target_compile_definitions(asyncpp_curl
-                              PRIVATE _DISABLE_STRING_ANNOTATION)
+    target_compile_definitions(asyncpp_curl PRIVATE _DISABLE_VECTOR_ANNOTATION)
+    target_compile_definitions(asyncpp_curl PRIVATE _DISABLE_STRING_ANNOTATION)
     target_link_libraries(asyncpp_curl PRIVATE libsancov.lib)
   else()
     target_compile_options(asyncpp_curl PRIVATE -fsanitize=address)
@@ -116,16 +132,17 @@ if(ASYNCPP_BUILD_TEST)
     ${CMAKE_CURRENT_SOURCE_DIR}/test/uri.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/util.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/webclient.cpp)
-  target_link_libraries(asyncpp_curl-test PRIVATE asyncpp_curl GTest::gtest
-                                                  GTest::gtest_main Threads::Threads)
+  target_link_libraries(
+    asyncpp_curl-test PRIVATE asyncpp_curl GTest::gtest GTest::gtest_main
+                              Threads::Threads)
 
   if(ASYNCPP_WITH_ASAN)
     if(MSVC)
       target_compile_options(asyncpp_curl-test PRIVATE -fsanitize=address /Zi)
       target_compile_definitions(asyncpp_curl-test
-                                PRIVATE _DISABLE_VECTOR_ANNOTATION)
+                                 PRIVATE _DISABLE_VECTOR_ANNOTATION)
       target_compile_definitions(asyncpp_curl-test
-                                PRIVATE _DISABLE_STRING_ANNOTATION)
+                                 PRIVATE _DISABLE_STRING_ANNOTATION)
       target_link_libraries(asyncpp_curl-test PRIVATE libsancov.lib)
     else()
       target_compile_options(asyncpp_curl-test PRIVATE -fsanitize=address)
@@ -142,14 +159,16 @@ if(ASYNCPP_BUILD_TEST)
 
   if(ASYNCPP_WITH_ASAN)
     if(MSVC)
-      target_compile_options(asyncpp_curl-ws-autobahn PRIVATE -fsanitize=address /Zi)
+      target_compile_options(asyncpp_curl-ws-autobahn PRIVATE -fsanitize=address
+                                                              /Zi)
       target_compile_definitions(asyncpp_curl-ws-autobahn
                                  PRIVATE _DISABLE_VECTOR_ANNOTATION)
       target_compile_definitions(asyncpp_curl-ws-autobahn
                                  PRIVATE _DISABLE_STRING_ANNOTATION)
       target_link_libraries(asyncpp_curl-ws-autobahn PRIVATE libsancov.lib)
     else()
-      target_compile_options(asyncpp_curl-ws-autobahn PRIVATE -fsanitize=address)
+      target_compile_options(asyncpp_curl-ws-autobahn
+                             PRIVATE -fsanitize=address)
       target_link_options(asyncpp_curl-ws-autobahn PRIVATE -fsanitize=address)
     endif()
   endif()
