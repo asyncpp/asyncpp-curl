@@ -25,12 +25,6 @@ else()
         OFF
         CACHE INTERNAL "" FORCE)
     set(BUILD_TESTING OFF)
-    set(CURL_CA_PATH
-        "auto"
-        CACHE INTERNAL "")
-    set(CURL_CA_BUNDLE
-        "auto"
-        CACHE INTERNAL "")
     if(WIN32)
       set(CMAKE_USE_SCHANNEL
           ON
@@ -76,6 +70,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/slist.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/tcp_client.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/uri.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/version.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/webclient.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/websocket.cpp)
 target_link_libraries(asyncpp_curl PUBLIC asyncpp)
@@ -131,6 +126,7 @@ if(ASYNCPP_BUILD_TEST)
     ${CMAKE_CURRENT_SOURCE_DIR}/test/tcp_client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/uri.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/util.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/version.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/webclient.cpp)
   target_link_libraries(
     asyncpp_curl-test PRIVATE asyncpp_curl GTest::gtest GTest::gtest_main
