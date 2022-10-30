@@ -40,9 +40,9 @@ namespace asyncpp::curl {
 		friend class handle;
 
 	public:
-		static const struct ownership_take_tag {
+		inline static const struct ownership_take_tag {
 		} ownership_take;
-		static const struct ownership_copy_tag {
+		inline static const struct ownership_copy_tag {
 		} ownership_copy;
 		constexpr slist() = default;
 		// Takes ownership

@@ -1,5 +1,6 @@
 #include <asyncpp/curl/uri.h>
 #include <gtest/gtest.h>
+#include <array>
 
 using namespace asyncpp::curl;
 
