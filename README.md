@@ -7,14 +7,17 @@ This library provides a c++ wrapper around libcurl supporting async usage with c
 It is an addition to [async++](https://github.com/asyncpp/asyncpp) which provides general coroutine tasks and support classes.
 
 Tested and supported compilers:
-| Ubuntu 20.04                                                          | Ubuntu 22.04                                                          |
+| Linux                                                                 | Windows                                                               |
 |-----------------------------------------------------------------------|-----------------------------------------------------------------------|
-| [![ubuntu-2004_clang-10][img_ubuntu-2004_clang-10]][Compiler-Support] | [![ubuntu-2204_clang-12][img_ubuntu-2204_clang-12]][Compiler-Support] |
-| [![ubuntu-2004_clang-11][img_ubuntu-2004_clang-11]][Compiler-Support] | [![ubuntu-2204_clang-13][img_ubuntu-2204_clang-13]][Compiler-Support] |
-| [![ubuntu-2004_clang-12][img_ubuntu-2004_clang-12]][Compiler-Support] | [![ubuntu-2204_clang-14][img_ubuntu-2204_clang-14]][Compiler-Support] |
-| [![ubuntu-2004_gcc-10][img_ubuntu-2004_gcc-10]][Compiler-Support]     | [![ubuntu-2204_gcc-10][img_ubuntu-2204_gcc-10]][Compiler-Support]     |
-|                                                                       | [![ubuntu-2204_gcc-11][img_ubuntu-2204_gcc-11]][Compiler-Support]     |
-
+| [![ubuntu-2004_clang-10][img_ubuntu-2004_clang-10]][Compiler-Support] | [![windows-2019_msvc16][img_windows-2019_msvc16]][Compiler-Support]   | 
+| [![ubuntu-2004_clang-11][img_ubuntu-2004_clang-11]][Compiler-Support] | [![windows-2022_msvc17][img_windows-2022_msvc17]][Compiler-Support]   |
+| [![ubuntu-2004_clang-12][img_ubuntu-2004_clang-12]][Compiler-Support] |                                                                       |
+| [![ubuntu-2004_gcc-10][img_ubuntu-2004_gcc-10]][Compiler-Support]     |                                                                       |
+| [![ubuntu-2204_clang-12][img_ubuntu-2204_clang-12]][Compiler-Support] |                                                                       |
+| [![ubuntu-2204_clang-13][img_ubuntu-2204_clang-13]][Compiler-Support] |                                                                       |
+| [![ubuntu-2204_clang-14][img_ubuntu-2204_clang-14]][Compiler-Support] |                                                                       |
+| [![ubuntu-2204_gcc-10][img_ubuntu-2204_gcc-10]][Compiler-Support]     |                                                                       |
+| [![ubuntu-2204_gcc-11][img_ubuntu-2204_gcc-11]][Compiler-Support]     |                                                                       |
 
 [img_ubuntu-2004_clang-10]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/asyncpp/asyncpp-curl/badges/compiler/ubuntu-2004_clang-10/shields.json
 [img_ubuntu-2004_clang-11]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/asyncpp/asyncpp-curl/badges/compiler/ubuntu-2004_clang-11/shields.json
@@ -25,6 +28,8 @@ Tested and supported compilers:
 [img_ubuntu-2204_clang-14]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/asyncpp/asyncpp-curl/badges/compiler/ubuntu-2204_clang-14/shields.json
 [img_ubuntu-2204_gcc-10]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/asyncpp/asyncpp-curl/badges/compiler/ubuntu-2204_gcc-10/shields.json
 [img_ubuntu-2204_gcc-11]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/asyncpp/asyncpp-curl/badges/compiler/ubuntu-2204_gcc-11/shields.json
+[img_windows-2019_msvc16]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/asyncpp/asyncpp-curl/badges/compiler/windows-2019_msvc16/shields.json
+[img_windows-2022_msvc17]: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/asyncpp/asyncpp-curl/badges/compiler/windows-2022_msvc17/shields.json
 [Compiler-Support]: https://github.com/asyncpp/asyncpp-curl/actions/workflows/compiler-support.yml
 
 In addition the websocket client is tested for compliance with [RFC6455](https://www.rfc-editor.org/rfc/rfc6455) using the [autobahn-testsuite](https://github.com/crossbario/autobahn-testsuite) project:
