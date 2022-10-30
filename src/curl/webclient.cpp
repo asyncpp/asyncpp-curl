@@ -145,9 +145,9 @@ namespace asyncpp::curl {
 		handle hdl{};
 		prepare_handle(hdl, *this, response, std::move(body_store_method));
 
-		if(configure_hook) configure_hook(hdl);
+		if (configure_hook) configure_hook(hdl);
 		hdl.perform();
-		if(result_hook) result_hook(hdl);
+		if (result_hook) result_hook(hdl);
 
 		response.status_code = hdl.get_response_code();
 		auto cookies = hdl.get_info_slist(CURLINFO_COOKIELIST);
@@ -176,13 +176,13 @@ namespace asyncpp::curl {
 	}
 
 	void http_request::execute_awaiter::await_suspend(coroutine_handle<> h) noexcept {
-		if(m_impl->m_request->configure_hook) m_impl->m_request->configure_hook(m_impl->m_handle);
+		if (m_impl->m_request->configure_hook) m_impl->m_request->configure_hook(m_impl->m_handle);
 		m_impl->m_exec.await_suspend(h);
 	}
 
 	http_response http_request::execute_awaiter::await_resume() const {
 		auto res = m_impl->m_exec.await_resume();
-		if(m_impl->m_request->result_hook) m_impl->m_request->result_hook(m_impl->m_handle);
+		if (m_impl->m_request->result_hook) m_impl->m_request->result_hook(m_impl->m_handle);
 		if (res != CURLE_OK) throw exception(res, false);
 		m_impl->m_response.status_code = m_impl->m_handle.get_response_code();
 		return std::move(m_impl->m_response);

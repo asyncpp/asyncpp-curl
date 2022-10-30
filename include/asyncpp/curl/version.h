@@ -1,7 +1,7 @@
 #pragma once
+#include <span>
 #include <string>
 #include <string_view>
-#include <span>
 
 struct curl_version_info_data;
 namespace asyncpp::curl {
@@ -130,8 +130,8 @@ namespace asyncpp::curl {
 			hsts,
 			gsasl
 		};
-        static std::span<const feature> features() noexcept;
-        static std::string_view feature_name(feature f) noexcept;
-        static feature next_feature(feature f) noexcept;
+		static std::span<const feature> features() noexcept;
+		static std::string_view feature_name(feature f) noexcept;
+		static feature next_feature(feature f) noexcept;
 	};
 } // namespace asyncpp::curl

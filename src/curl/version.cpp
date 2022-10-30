@@ -1,6 +1,6 @@
+#include <array>
 #include <asyncpp/curl/version.h>
 #include <curl/curl.h>
-#include <array>
 
 namespace asyncpp::curl {
 	static_assert(CURL_VERSION_GSASL == (1 << static_cast<int>(version::feature::gsasl)));
@@ -33,7 +33,8 @@ namespace asyncpp::curl {
 
 	size_t version::protocol_count() const noexcept {
 		auto pos = m_info->protocols;
-		while (pos && *pos) pos++;
+		while (pos && *pos)
+			pos++;
 		return pos - m_info->protocols;
 	}
 
@@ -56,10 +57,10 @@ namespace asyncpp::curl {
 
 	std::string_view version::iconv_version() const noexcept {
 		if (m_info->age >= CURLVERSION_FOURTH) {
-			static std::array<char, 12> str = [](int v){
+			static std::array<char, 12> str = [](int v) {
 				std::array<char, 12> res{};
-				if(v == 0) return res;
-				snprintf(res.data(), res.size()-1, "%d.%u", v >> 8, v & 0xff);
+				if (v == 0) return res;
+				snprintf(res.data(), res.size() - 1, "%d.%u", v >> 8, v & 0xff);
 				return res;
 			}(iconv_num());
 			return std::string_view(str.data());
