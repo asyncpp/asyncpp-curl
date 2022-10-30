@@ -9,7 +9,7 @@
 using namespace asyncpp::curl;
 
 TEST(ASYNCPP_CURL, WebClientSync) {
-	auto req = http_request::make_get("http://www.google.de");
+	auto req = http_request::make_get("https://www.google.de");
 	auto resp = req.execute_sync();
 	ASSERT_EQ(resp.status_code, 200);
 	ASSERT_EQ(resp.status_message, "OK");
@@ -18,7 +18,7 @@ TEST(ASYNCPP_CURL, WebClientSync) {
 }
 
 TEST(ASYNCPP_CURL, WebClientAsync) {
-	auto req = http_request::make_get("http://www.google.de");
+	auto req = http_request::make_get("https://www.google.de");
 	auto resp = asyncpp::as_promise(req.execute_async()).get();
 	ASSERT_EQ(resp.status_code, 200);
 	ASSERT_EQ(resp.status_message, "OK");
@@ -28,7 +28,7 @@ TEST(ASYNCPP_CURL, WebClientAsync) {
 
 TEST(ASYNCPP_CURL, WebClientAsyncStopToken) {
 	std::stop_source source;
-	auto req = http_request::make_get("http://www.google.de");
+	auto req = http_request::make_get("https://www.google.de");
 	auto resp_future = asyncpp::as_promise(req.execute_async(source.get_token()));
 	source.request_stop();
 	try {
@@ -38,7 +38,7 @@ TEST(ASYNCPP_CURL, WebClientAsyncStopToken) {
 }
 
 TEST(ASYNCPP_CURL, WebClientCookies) {
-	auto req = http_request::make_get("http://www.google.de");
+	auto req = http_request::make_get("https://www.google.de");
 	auto resp = req.execute_sync();
 	ASSERT_EQ(resp.status_code, 200);
 	ASSERT_EQ(resp.status_message, "OK");

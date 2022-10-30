@@ -73,7 +73,7 @@ namespace asyncpp::curl {
 					auto fd = e->get_info_socket(CURLINFO_ACTIVESOCKET);
 					fds[i].events = e->is_paused(CURLPAUSE_RECV) ? 0 : (CURL_WAIT_POLLIN | CURL_WAIT_POLLPRI);
 					fds[i].events |= e->is_paused(CURLPAUSE_SEND) ? 0 : CURL_WAIT_POLLOUT;
-					if (fd == std::numeric_limits<uint64_t>::max() || fds[i].events == 0) {
+					if (fd == (std::numeric_limits<uint64_t>::max)() || fds[i].events == 0) {
 						num_handles--;
 						continue;
 					}
@@ -137,6 +137,7 @@ namespace asyncpp::curl {
 				std::unique_lock lck{m_handle->m_mtx};
 				m_handle->m_executor = nullptr;
 				m_parent->m_multi.remove_handle(*m_handle);
+				lck.unlock();
 				cb(CURLE_ABORTED_BY_CALLBACK);
 			});
 		}

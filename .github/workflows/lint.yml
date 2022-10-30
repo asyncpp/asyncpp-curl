@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - run: |
-          sudo apt-get install clang-format-14
+          sudo apt-get update && sudo apt-get install clang-format-14
           shopt -s globstar
       - uses: actions/checkout@v3
       - run: find \( -name "*.h" -or -name "*.cpp" \) -exec clang-format-14 -i {} \;
@@ -22,7 +22,7 @@ jobs:
   cmake-format:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4.3.0
         with:
           python-version: "3.x"
       - run: |

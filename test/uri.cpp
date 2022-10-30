@@ -1,3 +1,4 @@
+#include <array>
 #include <asyncpp/curl/uri.h>
 #include <gtest/gtest.h>
 

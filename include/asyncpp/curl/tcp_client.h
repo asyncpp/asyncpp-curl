@@ -2,6 +2,7 @@
 #include <asyncpp/curl/exception.h>
 #include <asyncpp/curl/handle.h>
 #include <asyncpp/detail/std_import.h>
+#include <cstddef>
 #include <cstdint>
 #include <mutex>
 
@@ -58,7 +59,7 @@ namespace asyncpp::curl {
 		 *			- -1 if no data is available (EAGAIN)
 		 *			- 0 if the connection was closed
 		 */
-		ssize_t recv_raw(void* buffer, size_t buflen);
+		std::ptrdiff_t recv_raw(void* buffer, size_t buflen);
 
 		/**
 		 * \brief Pause or unpause the receiving of data.

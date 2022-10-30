@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -211,7 +212,7 @@ namespace asyncpp::curl {
 		 *			- -1 if no data is available (EAGAIN)
 		 *			- 0 if the connection was closed
 		 */
-		ssize_t recv(void* buffer, size_t buflen);
+		std::ptrdiff_t recv(void* buffer, size_t buflen);
 		/**
 		 * \brief Send data on a CURLOPT_CONNECT_ONLY connection
 		 * \param buffer Buffer to send
@@ -220,7 +221,7 @@ namespace asyncpp::curl {
 		 *			- -1 if no the connection buffer is full (EAGAIN)
 		 *			- 0 if the connection was closed
 		 */
-		ssize_t send(const void* buffer, size_t buflen);
+		std::ptrdiff_t send(const void* buffer, size_t buflen);
 		/**
 		 * \brief Check if this handle has the CURLOPT_CONNECT_ONLY option set.
 		 *	If this option is set the handle wont be automatically removed

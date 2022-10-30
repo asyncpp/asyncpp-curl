@@ -5,9 +5,13 @@
 #include <curl/curl.h>
 #include <curl/multi.h>
 #include <mutex>
-#include <unistd.h>
 #if LIBCURL_VERSION_NUM < 0x074400
+#ifdef __linux__
 #include <sys/eventfd.h>
+#include <unistd.h>
+#else
+#error "Unsupported os / curl combination"
+#endif
 #endif
 
 namespace asyncpp::curl {
@@ -26,7 +30,9 @@ namespace asyncpp::curl {
 
 	multi::~multi() noexcept {
 		if (m_instance) curl_multi_cleanup(m_instance);
+#if LIBCURL_VERSION_NUM < 0x074400
 		if (m_wakeup >= 0) close(m_wakeup);
+#endif
 	}
 
 	void multi::add_handle(handle& hdl) {

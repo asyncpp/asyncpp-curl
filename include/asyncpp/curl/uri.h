@@ -39,7 +39,7 @@ namespace asyncpp::curl {
 		void auth(std::string_view str) { m_auth = std::string(str); }
 		void host(std::string str) { m_host = std::move(str); }
 		void host(std::string_view str) { m_host = std::string(str); }
-		void port(int port) { m_port = std::max(-1, std::min(port, 65535)); }
+		void port(int port) { m_port = (std::max)(-1, (std::min)(port, 65535)); }
 		void path(std::string str) { m_path = std::move(str); }
 		void path(std::string_view str) { m_path = std::string(str); }
 		void query(std::string str) { m_query = std::move(str); }
