@@ -2,27 +2,29 @@
 #include <asyncpp/curl/version.h>
 #include <curl/curl.h>
 
+#define info static_cast<curl_version_info_data*>(m_info)
+
 namespace asyncpp::curl {
-	static_assert(CURL_VERSION_GSASL == (1 << static_cast<int>(version::feature::gsasl)));
+	//static_assert(CURL_VERSION_GSASL == (1 << static_cast<int>(version::feature::gsasl)));
 
 	version::version() noexcept { m_info = curl_version_info(CURLVERSION_NOW); }
 
-	std::string_view version::curl_version() const noexcept { return m_info->version ? m_info->version : ""; }
+	std::string_view version::curl_version() const noexcept { return info->version ? info->version : ""; }
 
-	unsigned int version::curl_version_num() const noexcept { return m_info->version_num; }
+	unsigned int version::curl_version_num() const noexcept { return info->version_num; }
 
-	std::string_view version::host() const noexcept { return m_info->host ? m_info->host : ""; }
+	std::string_view version::host() const noexcept { return info->host ? info->host : ""; }
 
-	bool version::has_feature(feature f) const noexcept { return (m_info->features & (1 << static_cast<size_t>(f))) != 0; }
+	bool version::has_feature(feature f) const noexcept { return (info->features & (1 << static_cast<size_t>(f))) != 0; }
 
-	std::string_view version::ssl_version() const noexcept { return m_info->ssl_version ? m_info->ssl_version : ""; }
+	std::string_view version::ssl_version() const noexcept { return info->ssl_version ? info->ssl_version : ""; }
 
-	std::string_view version::libz_version() const noexcept { return m_info->libz_version ? m_info->libz_version : ""; }
+	std::string_view version::libz_version() const noexcept { return info->libz_version ? info->libz_version : ""; }
 
-	cstring_array_iterator::helper version::protocols() const noexcept { return cstring_array_iterator::helper{m_info->protocols}; }
+	cstring_array_iterator::helper version::protocols() const noexcept { return cstring_array_iterator::helper{info->protocols}; }
 
 	std::string_view version::protocol(size_t index) const noexcept {
-		auto pos = m_info->protocols;
+		auto pos = info->protocols;
 		while (index) {
 			if (pos == nullptr || *pos == nullptr) break;
 			pos++;
@@ -32,31 +34,30 @@ namespace asyncpp::curl {
 	}
 
 	size_t version::protocol_count() const noexcept {
-		auto pos = m_info->protocols;
+		auto pos = info->protocols;
 		while (pos && *pos)
 			pos++;
-		return pos - m_info->protocols;
+		return pos - info->protocols;
 	}
 
 	std::string_view version::ares_version() const noexcept {
-		if (m_info->age >= CURLVERSION_SECOND) return m_info->ares ? m_info->ares : "";
+		if (info->age >= CURLVERSION_SECOND) return info->ares ? info->ares : "";
 		return "";
 	}
 
 	int version::ares_version_num() const noexcept {
-		if (m_info->age >= CURLVERSION_SECOND) return m_info->ares_num;
+		if (info->age >= CURLVERSION_SECOND) return info->ares_num;
 		return -1;
 	}
 
 	std::string_view version::libidn_version() const noexcept {
-		if (m_info->age >= CURLVERSION_THIRD) return m_info->libidn ? m_info->libidn : "";
+		if (info->age >= CURLVERSION_THIRD) return info->libidn ? info->libidn : "";
 		return "";
 	}
 
-	/* These field were added in CURLVERSION_FOURTH */
-
+#if CURL_AT_LEAST_VERSION(7, 16, 1)
 	std::string_view version::iconv_version() const noexcept {
-		if (m_info->age >= CURLVERSION_FOURTH) {
+		if (info->age >= CURLVERSION_FOURTH) {
 			static std::array<char, 12> str = [](int v) {
 				std::array<char, 12> res{};
 				if (v == 0) return res;
@@ -69,75 +70,104 @@ namespace asyncpp::curl {
 	}
 
 	int version::iconv_num() const noexcept {
-		if (m_info->age >= CURLVERSION_FOURTH) return m_info->iconv_ver_num;
+		if (info->age >= CURLVERSION_FOURTH) return info->iconv_ver_num;
 		return -1;
 	}
 
 	std::string_view version::libssh_version() const noexcept {
-		if (m_info->age >= CURLVERSION_FOURTH) return m_info->libssh_version ? m_info->libssh_version : "";
+		if (info->age >= CURLVERSION_FOURTH) return info->libssh_version ? info->libssh_version : "";
 		return "";
 	}
 
-	/* These fields were added in CURLVERSION_FIFTH */
+#else
+	std::string_view version::iconv_version() const noexcept { return ""; }
+	int version::iconv_num() const noexcept { return -1; }
+	std::string_view version::libssh_version() const noexcept { return ""; }
+#endif
+
+#if CURL_AT_LEAST_VERSION(7, 57, 0)
 	unsigned int version::brotli_version_num() const noexcept {
-		if (m_info->age >= CURLVERSION_FIFTH) return m_info->brotli_ver_num;
+		if (info->age >= CURLVERSION_FIFTH) return info->brotli_ver_num;
 		return -1;
 	}
 
 	std::string_view version::brotli_version() const noexcept {
-		if (m_info->age >= CURLVERSION_FIFTH) return m_info->brotli_version ? m_info->brotli_version : "";
+		if (info->age >= CURLVERSION_FIFTH) return info->brotli_version ? info->brotli_version : "";
 		return "";
 	}
+#else
+	unsigned int version::brotli_version_num() const noexcept { return -1; }
+	std::string_view version::brotli_version() const noexcept { return ""; }
+#endif
 
-	/* These fields were added in CURLVERSION_SIXTH */
+#if CURL_AT_LEAST_VERSION(7, 66, 0)
 	unsigned int version::nghttp2_version_num() const noexcept {
-		if (m_info->age >= CURLVERSION_SIXTH) return m_info->nghttp2_ver_num;
+		if (info->age >= CURLVERSION_SIXTH) return info->nghttp2_ver_num;
 		return -1;
 	}
 
 	std::string_view version::nghttp2_version() const noexcept {
-		if (m_info->age >= CURLVERSION_SIXTH) return m_info->nghttp2_version ? m_info->nghttp2_version : "";
+		if (info->age >= CURLVERSION_SIXTH) return info->nghttp2_version ? info->nghttp2_version : "";
 		return "";
 	}
 
 	std::string_view version::quic_version() const noexcept {
-		if (m_info->age >= CURLVERSION_SIXTH) return m_info->quic_version ? m_info->quic_version : "";
+		if (info->age >= CURLVERSION_SIXTH) return info->quic_version ? info->quic_version : "";
 		return "";
 	}
+#else
+	unsigned int version::nghttp2_version_num() const noexcept { return -1; }
+	std::string_view version::nghttp2_version() const noexcept { return ""; }
+	std::string_view version::quic_version() const noexcept { return ""; }
+#endif
 
-	/* These fields were added in CURLVERSION_SEVENTH */
+#if CURL_AT_LEAST_VERSION(7, 70, 0)
 	std::string_view version::cainfo() const noexcept {
-		if (m_info->age >= CURLVERSION_SEVENTH) return m_info->cainfo ? m_info->cainfo : "";
+		if (info->age >= CURLVERSION_SEVENTH) return info->cainfo ? info->cainfo : "";
 		return "";
 	}
 
 	std::string_view version::capath() const noexcept {
-		if (m_info->age >= CURLVERSION_SEVENTH) return m_info->capath ? m_info->capath : "";
+		if (info->age >= CURLVERSION_SEVENTH) return info->capath ? info->capath : "";
 		return "";
 	}
+#else
+	std::string_view version::cainfo() const noexcept { return ""; }
+	std::string_view version::capath() const noexcept { return ""; }
+#endif
 
-	/* These fields were added in CURLVERSION_EIGHTH */
+#if CURL_AT_LEAST_VERSION(7, 71, 0)
 	unsigned int version::zstd_version_num() const noexcept {
-		if (m_info->age >= CURLVERSION_EIGHTH) return m_info->zstd_ver_num;
+		if (info->age >= CURLVERSION_EIGHTH) return info->zstd_ver_num;
 		return -1;
 	}
 
 	std::string_view version::zstd_version() const noexcept {
-		if (m_info->age >= CURLVERSION_EIGHTH) return m_info->zstd_version ? m_info->zstd_version : "";
+		if (info->age >= CURLVERSION_EIGHTH) return info->zstd_version ? info->zstd_version : "";
 		return "";
 	}
+#else
+	unsigned int version::zstd_version_num() const noexcept { return -1; }
+	std::string_view version::zstd_version() const noexcept { return ""; }
+#endif
 
-	/* These fields were added in CURLVERSION_NINTH */
+#if CURL_AT_LEAST_VERSION(7, 75, 0)
 	std::string_view version::hyper_version() const noexcept {
-		if (m_info->age >= CURLVERSION_NINTH) return m_info->hyper_version ? m_info->hyper_version : "";
+		if (info->age >= CURLVERSION_NINTH) return info->hyper_version ? info->hyper_version : "";
 		return "";
 	}
+#else
+	std::string_view version::hyper_version() const noexcept { return ""; }
+#endif
 
-	/* These fields were added in CURLVERSION_TENTH */
+#if CURL_AT_LEAST_VERSION(7, 77, 0)
 	std::string_view version::gsasl_version() const noexcept {
-		if (m_info->age >= CURLVERSION_TENTH) return m_info->gsasl_version ? m_info->gsasl_version : "";
+		if (info->age >= CURLVERSION_TENTH) return info->gsasl_version ? info->gsasl_version : "";
 		return "";
 	}
+#else
+	std::string_view version::gsasl_version() const noexcept { return ""; }
+#endif
 
 	std::span<const version::feature> version::features() noexcept {
 		static constexpr feature list[]{feature::ipv6,		   feature::kerberos4,	 feature::ssl,		 feature::libz,		 feature::ntlm,

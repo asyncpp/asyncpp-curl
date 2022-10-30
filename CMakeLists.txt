@@ -13,7 +13,7 @@ if(HUNTER_ENABLED)
   find_package(CURL CONFIG REQUIRED)
 else()
   find_package(CURL)
-  if(NOT CURL)
+  if(NOT CURL_FOUND)
     # We only need HTTP (and HTTPS) support:
     set(HTTP_ONLY
         ON

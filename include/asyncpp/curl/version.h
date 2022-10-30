@@ -3,7 +3,6 @@
 #include <string>
 #include <string_view>
 
-struct curl_version_info_data;
 namespace asyncpp::curl {
 	class cstring_array_iterator {
 		const char* const* m_pos{nullptr};
@@ -42,7 +41,7 @@ namespace asyncpp::curl {
 		constexpr cstring_array_iterator end() const noexcept { return {}; }
 	};
 	class version {
-		struct curl_version_info_data* m_info;
+		void* m_info;
 
 	public:
 		enum class feature;

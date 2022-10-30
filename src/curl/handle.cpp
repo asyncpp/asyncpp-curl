@@ -68,16 +68,16 @@ namespace asyncpp::curl {
 	}
 
 	void handle::set_option_blob(int opt, void* data, size_t data_size, bool copy) {
-#if LIBCURL_VERSION_NUM < 0x074700
-		// This was only introduced in 7.71.0
-		throw std::runtime_error("unsupported option");
-#else
+#if CURL_AT_LEAST_VERSION(7, 71, 0)
 		// TODO: Evaluate curl_easy_option_by_id for checking
 		if (int base = (opt / 10000) * 10000; base != CURLOPTTYPE_BLOB) throw std::invalid_argument("invalid option supplied to set_option_blob");
 		curl_blob b{.data = data, .len = data_size, .flags = static_cast<unsigned int>(copy ? CURL_BLOB_COPY : CURL_BLOB_NOCOPY)};
 		std::scoped_lock lck{m_mtx};
 		auto res = curl_easy_setopt(m_instance, static_cast<CURLoption>(opt), &b);
 		if (res != CURLE_OK) throw exception{res};
+#else
+		// This was only introduced in 7.71.0
+		throw std::runtime_error("unsupported option");
 #endif
 	}
 
@@ -240,7 +240,7 @@ namespace asyncpp::curl {
 	}
 
 	void handle::upkeep() {
-#if LIBCURL_VERSION_NUM >= 0x073E00
+#if CURL_AT_LEAST_VERSION(7, 62, 0)
 		std::scoped_lock lck{m_mtx};
 		auto res = curl_easy_upkeep(m_instance);
 		if (res != CURLE_OK) throw exception{res};

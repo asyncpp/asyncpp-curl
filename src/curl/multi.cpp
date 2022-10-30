@@ -5,7 +5,7 @@
 #include <curl/curl.h>
 #include <curl/multi.h>
 #include <mutex>
-#if LIBCURL_VERSION_NUM < 0x074400
+#if !CURL_AT_LEAST_VERSION(7, 68, 0)
 #ifdef __linux__
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -19,7 +19,7 @@ namespace asyncpp::curl {
 		// TODO: Needs a mutex
 		m_instance = curl_multi_init();
 		if (!m_instance) throw std::runtime_error("failed to create curl handle");
-#if LIBCURL_VERSION_NUM < 0x074400
+#if !CURL_AT_LEAST_VERSION(7, 68, 0)
 		m_wakeup = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
 		if (m_wakeup < 0) {
 			curl_multi_cleanup(m_instance);
@@ -30,7 +30,7 @@ namespace asyncpp::curl {
 
 	multi::~multi() noexcept {
 		if (m_instance) curl_multi_cleanup(m_instance);
-#if LIBCURL_VERSION_NUM < 0x074400
+#if !CURL_AT_LEAST_VERSION(7, 68, 0)
 		if (m_wakeup >= 0) close(m_wakeup);
 #endif
 	}
@@ -74,7 +74,7 @@ namespace asyncpp::curl {
 	}
 
 	void multi::poll(std::span<curl_waitfd> extra_fds, int timeout_ms, int* num_fds) {
-#if LIBCURL_VERSION_NUM < 0x074400
+#if !CURL_AT_LEAST_VERSION(7, 68, 0)
 		curl_waitfd extra[extra_fds.size() + 1];
 		memcpy(extra, extra_fds.data(), extra_fds.size_bytes());
 		extra[extra_fds.size()].fd = m_wakeup;
@@ -94,7 +94,7 @@ namespace asyncpp::curl {
 	}
 
 	void multi::wakeup() {
-#if LIBCURL_VERSION_NUM < 0x074400
+#if !CURL_AT_LEAST_VERSION(7, 68, 0)
 		uint64_t t = 1;
 		auto unused = write(m_wakeup, &t, sizeof(t));
 		static_cast<void>(unused);
