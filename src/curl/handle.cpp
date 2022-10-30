@@ -316,7 +316,7 @@ namespace asyncpp::curl {
 		curl_socket_t p;
 		auto res = curl_easy_getinfo(m_instance, static_cast<CURLINFO>(info), &p);
 		if (res != CURLE_OK) throw exception{res};
-		if (p == CURL_SOCKET_BAD) return std::numeric_limits<uint64_t>::max();
+		if (p == CURL_SOCKET_BAD) return (std::numeric_limits<uint64_t>::max)();
 		return p;
 	}
 

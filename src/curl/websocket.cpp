@@ -153,10 +153,10 @@ namespace asyncpp::curl {
 		m_state->request_headers.emplace("Connection", "Upgrade");
 		m_state->request_headers.emplace("Upgrade", "websocket");
 		m_state->request_headers.emplace("Sec-WebSocket-Version", "13");
-		std::uniform_int_distribution<unsigned short> dist(0, 255);
+		std::uniform_int_distribution<short> dist((std::numeric_limits<char>::min)(), (std::numeric_limits<char>::max)());
 		std::string nonce;
 		nonce.resize(16);
-		std::generate(nonce.begin(), nonce.end(), [dist]() mutable { return dist(g_random); });
+		std::generate(nonce.begin(), nonce.end(), [dist]() mutable -> char { return dist(g_random); });
 		nonce = base64::encode(nonce);
 		m_state->request_headers.emplace("Sec-WebSocket-Key", nonce);
 		m_state->handshake_nonce = base64::encode(sha1::hash(nonce + ws_magic_string));
@@ -539,8 +539,8 @@ namespace asyncpp::curl {
 		data.first[1] |= 0x80;
 
 		auto masking_key = data.first.data() + header_len - 4;
-		std::uniform_int_distribution<unsigned short> dist(0, 255);
-		std::generate(masking_key, masking_key + 4, [dist]() mutable { return dist(g_random); });
+		std::uniform_int_distribution<short> dist((std::numeric_limits<char>::min)(), (std::numeric_limits<char>::max)());
+		std::generate(masking_key, masking_key + 4, [dist]() mutable -> char { return dist(g_random); });
 		for (size_t i = 0; i < buf.size_bytes(); i++) {
 			data.first[i + header_len] ^= masking_key[i % 4];
 		}

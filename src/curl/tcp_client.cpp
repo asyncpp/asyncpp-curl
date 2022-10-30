@@ -123,7 +123,7 @@ namespace asyncpp::curl {
 		// Try inline send
 		auto res = m_handle.send(buffer, size);
 		if (res != -1) {
-			if (m_handle.is_verbose()) printf("* curl::tcp_client.send finished inline res=%ld\n", res);
+			if (m_handle.is_verbose()) printf("* curl::tcp_client.send finished inline res=%td\n", res);
 // Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
 #if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb), res]() { cb(res); });
@@ -164,7 +164,7 @@ namespace asyncpp::curl {
 		// Try inline send
 		auto res = m_handle.send(buffer, size);
 		if (res == 0 || static_cast<size_t>(res) == size) {
-			if (m_handle.is_verbose()) printf("* curl::tcp_client.send_all finished inline res=%ld\n", res);
+			if (m_handle.is_verbose()) printf("* curl::tcp_client.send_all finished inline res=%td\n", res);
 // Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
 #if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb), res]() { cb(res); });
@@ -208,7 +208,7 @@ namespace asyncpp::curl {
 		// Try inline recv
 		auto res = m_handle.recv(buffer, size);
 		if (res != -1) {
-			if (m_handle.is_verbose()) printf("* curl::tcp_client.recv finished inline res=%ld\n", res);
+			if (m_handle.is_verbose()) printf("* curl::tcp_client.recv finished inline res=%td\n", res);
 // Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
 #if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb), res]() { cb(res); });
@@ -246,7 +246,7 @@ namespace asyncpp::curl {
 		// Try inline send
 		auto res = m_handle.recv(buffer, size);
 		if (res == 0 || static_cast<size_t>(res) == size) {
-			if (m_handle.is_verbose()) printf("* curl::tcp_client.recv_all finished inline res=%ld\n", res);
+			if (m_handle.is_verbose()) printf("* curl::tcp_client.recv_all finished inline res=%td\n", res);
 // Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
 #if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb), res]() { cb(res); });
