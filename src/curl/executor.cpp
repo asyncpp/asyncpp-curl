@@ -137,6 +137,7 @@ namespace asyncpp::curl {
 				std::unique_lock lck{m_handle->m_mtx};
 				m_handle->m_executor = nullptr;
 				m_parent->m_multi.remove_handle(*m_handle);
+				lck.unlock();
 				cb(CURLE_ABORTED_BY_CALLBACK);
 			});
 		}
