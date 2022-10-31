@@ -37,12 +37,13 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/websocket.cpp)
 target_link_libraries(asyncpp_curl PUBLIC asyncpp)
 target_link_libraries(asyncpp_curl PUBLIC CURL::libcurl Threads::Threads)
-find_package(OpenSSL REQUIRED)
-target_link_libraries(asyncpp_curl PUBLIC OpenSSL::Crypto OpenSSL::SSL)
 target_include_directories(asyncpp_curl
                            PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_features(asyncpp_curl PUBLIC cxx_std_20)
-
+if(NOT HUNTER_ENABLED AND NOT WIN32)
+  find_package(OpenSSL REQUIRED)
+  target_link_libraries(asyncpp_curl PUBLIC OpenSSL::Crypto OpenSSL::SSL)
+endif()
 if(ASYNCPP_WITH_ASAN)
   message(STATUS "Building with asan enabled")
   if(MSVC)
