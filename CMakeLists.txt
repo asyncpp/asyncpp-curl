@@ -8,46 +8,8 @@ endif()
 project(AsyncppCURL)
 
 find_package(Threads REQUIRED)
-if(HUNTER_ENABLED)
-  hunter_add_package(CURL)
-  find_package(CURL CONFIG REQUIRED)
-else()
-  find_package(CURL)
-  if(NOT CURL_FOUND)
-    # We only need HTTP (and HTTPS) support:
-    set(HTTP_ONLY
-        ON
-        CACHE INTERNAL "" FORCE)
-    set(BUILD_CURL_EXE
-        OFF
-        CACHE INTERNAL "" FORCE)
-    set(BUILD_SHARED_LIBS
-        OFF
-        CACHE INTERNAL "" FORCE)
-    set(BUILD_TESTING OFF)
-    if(WIN32)
-      set(CMAKE_USE_SCHANNEL
-          ON
-          CACHE INTERNAL "" FORCE)
-    else()
-      set(CMAKE_USE_OPENSSL
-          ON
-          CACHE INTERNAL "" FORCE)
-    endif()
-    include(FetchContent)
-    FetchContent_Declare(
-      curl
-      URL https://github.com/curl/curl/releases/download/curl-7_80_0/curl-7.80.0.tar.xz
-      URL_HASH
-        SHA256=a132bd93188b938771135ac7c1f3ac1d3ce507c1fcbef8c471397639214ae2ab # the file
-                                                                                # hash for
-                                                                                # curl-7.80.0.tar.xz
-      USES_TERMINAL_DOWNLOAD TRUE)
-    FetchContent_MakeAvailable(curl)
-    set_property(TARGET libcurl PROPERTY FOLDER "external")
-    message(STATUS "Building libcurl using FetchContent")
-  endif()
-endif()
+
+include(cmake/GetCURL.cmake)
 
 option(ASYNCPP_BUILD_TEST "Enable test builds" ON)
 option(ASYNCPP_WITH_ASAN "Enable asan for test builds" ON)
@@ -75,13 +37,12 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/websocket.cpp)
 target_link_libraries(asyncpp_curl PUBLIC asyncpp)
 target_link_libraries(asyncpp_curl PUBLIC CURL::libcurl Threads::Threads)
+find_package(OpenSSL REQUIRED)
+target_link_libraries(asyncpp_curl PUBLIC OpenSSL::Crypto OpenSSL::SSL)
 target_include_directories(asyncpp_curl
                            PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_features(asyncpp_curl PUBLIC cxx_std_20)
-if(NOT HUNTER_ENABLED AND NOT WIN32)
-  find_package(OpenSSL REQUIRED)
-  target_link_libraries(asyncpp_curl PUBLIC OpenSSL::Crypto OpenSSL::SSL)
-endif()
+
 if(ASYNCPP_WITH_ASAN)
   message(STATUS "Building with asan enabled")
   if(MSVC)
