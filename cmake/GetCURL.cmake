@@ -1,4 +1,6 @@
-if(HUNTER_ENABLED)
+if(TARGET libcurl)
+    message(STATUS "Using existing libcurl target.")
+elseif(HUNTER_ENABLED)
     hunter_add_package(CURL)
     hunter_add_package(OpenSSL)
     find_package(CURL CONFIG REQUIRED)
