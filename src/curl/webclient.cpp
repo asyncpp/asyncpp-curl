@@ -89,7 +89,7 @@ namespace asyncpp::curl {
 				hdl.set_readfunction([](char*, size_t) -> size_t { return 0; });
 			} else if (std::holds_alternative<const std::string*>(body_provider)) {
 				hdl.set_option_bool(CURLOPT_POST, true);
-				hdl.set_option_long(CURLOPT_POSTFIELDSIZE_LARGE, std::get<const std::string*>(body_provider)->size());
+				hdl.set_option_offset(CURLOPT_POSTFIELDSIZE_LARGE, std::get<const std::string*>(body_provider)->size());
 				hdl.set_option_ptr(CURLOPT_POSTFIELDS, std::get<const std::string*>(body_provider)->data());
 			} else if (std::holds_alternative<std::istream*>(body_provider)) {
 				hdl.set_option_bool(CURLOPT_POST, true);
