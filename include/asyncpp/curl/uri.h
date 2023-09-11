@@ -58,6 +58,17 @@ namespace asyncpp::curl {
 		static std::string encode(std::string_view str);
 		static std::string decode(std::string_view str);
 		static std::unordered_multimap<std::string, std::string> parse_formdata(std::string_view data);
+		template<typename ItBegin, typename ItEnd>
+		static std::string build_formdata(ItBegin it, ItEnd end) {
+			std::string formdata;
+			for(; it != end; ++it) {
+				if(!formdata.empty()) formdata += "&";
+				formdata += encode(it->first);
+				formdata += "=";
+				formdata += encode(it->second);
+			}
+			return formdata;
+		}
 
 		static std::vector<std::string> split_path(std::string_view path) {
 			std::vector<std::string> result;
@@ -75,7 +86,7 @@ namespace asyncpp::curl {
 		template<typename ItBegin, typename ItEnd>
 		static std::string merge_path(ItBegin it, ItEnd end) {
 			std::string result = "/";
-			for (; it != end; it++) {
+			for (; it != end; ++it) {
 				result += *it;
 				result += "/";
 			}
