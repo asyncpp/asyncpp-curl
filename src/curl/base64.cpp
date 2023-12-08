@@ -1,4 +1,5 @@
 #include <asyncpp/curl/base64.h>
+#include <cstdint>
 #include <stdexcept>
 
 namespace asyncpp::curl {
