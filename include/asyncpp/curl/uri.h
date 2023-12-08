@@ -61,8 +61,8 @@ namespace asyncpp::curl {
 		template<typename ItBegin, typename ItEnd>
 		static std::string build_formdata(ItBegin it, ItEnd end) {
 			std::string formdata;
-			for(; it != end; ++it) {
-				if(!formdata.empty()) formdata += "&";
+			for (; it != end; ++it) {
+				if (!formdata.empty()) formdata += "&";
 				formdata += encode(it->first);
 				formdata += "=";
 				formdata += encode(it->second);
