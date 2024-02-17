@@ -88,14 +88,14 @@ namespace asyncpp::curl {
 			if (std::holds_alternative<http_request::no_body>(body_provider)) {
 				hdl.set_readfunction([](char*, size_t) -> size_t { return 0; });
 			} else if (std::holds_alternative<const std::string*>(body_provider)) {
-				hdl.set_option_bool(CURLOPT_POST, true);
-				hdl.set_option_offset(CURLOPT_POSTFIELDSIZE_LARGE, std::get<const std::string*>(body_provider)->size());
-				hdl.set_option_ptr(CURLOPT_POSTFIELDS, std::get<const std::string*>(body_provider)->data());
+				hdl.set_option_bool(CURLOPT_UPLOAD, true);
+				hdl.set_option_offset(CURLOPT_INFILESIZE_LARGE, std::get<const std::string*>(body_provider)->size());
+				hdl.set_readstring(*std::get<const std::string*>(body_provider));
 			} else if (std::holds_alternative<std::istream*>(body_provider)) {
-				hdl.set_option_bool(CURLOPT_POST, true);
+				hdl.set_option_bool(CURLOPT_UPLOAD, true);
 				hdl.set_readstream(*std::get<std::istream*>(body_provider));
 			} else if (std::holds_alternative<std::function<size_t(char*, size_t)>>(body_provider)) {
-				hdl.set_option_bool(CURLOPT_POST, true);
+				hdl.set_option_bool(CURLOPT_UPLOAD, true);
 				hdl.set_readfunction(std::move(std::get<std::function<size_t(char*, size_t)>>(body_provider)));
 			} else
 				throw std::logic_error("invalide variant");
