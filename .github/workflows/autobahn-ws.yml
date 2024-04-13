@@ -14,11 +14,11 @@ on:
       - ".github/actions/**"
       - ".github/workflows/autobahn-ws.yml"
 env:
-  CXX: /usr/bin/clang++-12
-  CC: /usr/bin/clang-12
+  CXX: /usr/bin/clang++-15
+  CC: /usr/bin/clang-15
 jobs:
   autobahn-ws:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - name: Configure

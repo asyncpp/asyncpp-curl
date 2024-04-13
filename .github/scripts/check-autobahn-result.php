@@ -19,8 +19,7 @@ $failed = false;
 foreach($data as $k=>$v) {
     $ok = true;
     if($v["behavior"] == "UNIMPLEMENTED" || $v["behaviorClose"] == "UNIMPLEMENTED") {
-        if(explode(".", $k)[0] == "12" || explode(".", $k)[0] == "13") continue;
-        else $ok = false;
+        $ok = false;
     } else if($v["behavior"] == "NON-STRICT" || $v["behaviorClose"] == "NON-STRICT") {
         if(!in_array($k, $non_strict)) $ok = false;
     } else if($v["behavior"] == "INFORMATIONAL" || $v["behaviorClose"] == "INFORMATIONAL") {

@@ -24,6 +24,7 @@ namespace asyncpp::curl {
 			ping,
 			pong,
 
+			compressed = 0x40,
 			fin = 0x80,
 		};
 		using header_map = std::multimap<std::string, std::string, case_insensitive_less>;
