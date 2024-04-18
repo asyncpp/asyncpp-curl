@@ -93,44 +93,24 @@ namespace asyncpp::curl {
 		auto recv_cb = std::exchange(m_recv_handler, {});
 		m_handle.reset();
 		m_is_connected = false;
-// Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
-#if defined(__clang__) && __clang_major__ < 12
 		m_executor.push([cb = std::move(cb), recv_cb = std::move(recv_cb), send_cb = std::move(send_cb)]() {
 			if (recv_cb) recv_cb(true);
 			if (send_cb) send_cb(true);
 			if (cb) cb();
 		});
-#else
-		lck.unlock();
-		if (recv_cb) recv_cb(true);
-		if (send_cb) send_cb(true);
-		if (cb) cb();
-#endif
 	}
 
 	void tcp_client::send(const void* buffer, size_t size, std::function<void(size_t)> cb) {
 		std::unique_lock lck{m_mtx};
 		if (m_send_handler) throw std::logic_error("Send already in progress");
 		if (!m_is_connected) {
-// Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
-#if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb)]() { cb(0); });
-#else
-			lck.unlock();
-			return cb(0);
-#endif
 		}
 		// Try inline send
 		auto res = m_handle.send(buffer, size);
 		if (res != -1) {
 			if (m_handle.is_verbose()) printf("* curl::tcp_client.send finished inline res=%td\n", res);
-// Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
-#if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb), res]() { cb(res); });
-#else
-			lck.unlock();
-			return cb(res);
-#endif
 		}
 		// No data available, set the callback and unpause the transfer (adds the connections to poll).
 		m_send_handler = [this, buffer, size, cb](bool cancel) {
@@ -153,25 +133,13 @@ namespace asyncpp::curl {
 		std::unique_lock lck{m_mtx};
 		if (m_send_handler) throw std::logic_error("Send already in progress");
 		if (!m_is_connected) {
-// Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
-#if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb)]() { cb(0); });
-#else
-			lck.unlock();
-			return cb(0);
-#endif
 		}
 		// Try inline send
 		auto res = m_handle.send(buffer, size);
 		if (res == 0 || static_cast<size_t>(res) == size) {
 			if (m_handle.is_verbose()) printf("* curl::tcp_client.send_all finished inline res=%td\n", res);
-// Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
-#if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb), res]() { cb(res); });
-#else
-			lck.unlock();
-			return cb(res);
-#endif
 		}
 		auto u8ptr = reinterpret_cast<const uint8_t*>(buffer);
 		size_t sent{(res < 0) ? 0u : static_cast<size_t>(res)};
@@ -197,25 +165,13 @@ namespace asyncpp::curl {
 		std::unique_lock lck{m_mtx};
 		if (m_recv_handler) throw std::logic_error("Read already in progress");
 		if (!m_is_connected) {
-// Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
-#if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb)]() { cb(0); });
-#else
-			lck.unlock();
-			return cb(0);
-#endif
 		}
 		// Try inline recv
 		auto res = m_handle.recv(buffer, size);
 		if (res != -1) {
 			if (m_handle.is_verbose()) printf("* curl::tcp_client.recv finished inline res=%td\n", res);
-// Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
-#if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb), res]() { cb(res); });
-#else
-			lck.unlock();
-			return cb(res);
-#endif
 		}
 		m_recv_handler = [this, buffer, size, cb](bool cancel) {
 			if (cancel) {
@@ -235,25 +191,13 @@ namespace asyncpp::curl {
 		std::unique_lock lck{m_mtx};
 		if (m_recv_handler) throw std::logic_error("Read already in progress");
 		if (!m_is_connected) {
-// Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
-#if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb)]() { cb(0); });
-#else
-			lck.unlock();
-			return cb(0);
-#endif
 		}
 		// Try inline send
 		auto res = m_handle.recv(buffer, size);
 		if (res == 0 || static_cast<size_t>(res) == size) {
 			if (m_handle.is_verbose()) printf("* curl::tcp_client.recv_all finished inline res=%td\n", res);
-// Clang 10 seems to be unhappy about resuming inside await_suspend, so push the callback instead
-#if defined(__clang__) && __clang_major__ < 12
 			return m_executor.push([cb = std::move(cb), res]() { cb(res); });
-#else
-			lck.unlock();
-			return cb(res);
-#endif
 		}
 		auto u8ptr = reinterpret_cast<uint8_t*>(buffer);
 		size_t read{(res < 0) ? 0u : static_cast<size_t>(res)};

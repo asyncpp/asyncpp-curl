@@ -126,7 +126,6 @@ namespace {
 
 TEST(ASYNCPP_CURL, Utf8CheckNormal) {
 	constexpr size_t size = sizeof(test_cases) / sizeof(test_cases[0]);
-	bool all_ok = true;
 	for (size_t i = 0; i < size; i++) {
 		auto& t = test_cases[i];
 		auto res = utf8_validator{}(std::get<0>(t), utf8_validator::mode::normal);
@@ -138,7 +137,6 @@ TEST(ASYNCPP_CURL, Utf8CheckNormal) {
 
 TEST(ASYNCPP_CURL, Utf8CheckStrict) {
 	constexpr size_t size = sizeof(test_cases) / sizeof(test_cases[0]);
-	bool all_ok = true;
 	for (size_t i = 0; i < size; i++) {
 		auto& t = test_cases[i];
 		auto res = utf8_validator{}(std::get<0>(t), utf8_validator::mode::strict);
@@ -150,7 +148,6 @@ TEST(ASYNCPP_CURL, Utf8CheckStrict) {
 
 TEST(ASYNCPP_CURL, Utf8CheckPedantic) {
 	constexpr size_t size = sizeof(test_cases) / sizeof(test_cases[0]);
-	bool all_ok = true;
 	for (size_t i = 0; i < size; i++) {
 		auto& t = test_cases[i];
 		auto res = utf8_validator{}(std::get<0>(t), utf8_validator::mode::pedantic);
@@ -162,7 +159,6 @@ TEST(ASYNCPP_CURL, Utf8CheckPedantic) {
 
 TEST(ASYNCPP_CURL, Utf8CheckExtreme) {
 	constexpr size_t size = sizeof(test_cases) / sizeof(test_cases[0]);
-	bool all_ok = true;
 	for (size_t i = 0; i < size; i++) {
 		auto& t = test_cases[i];
 		auto res = utf8_validator{}(std::get<0>(t), utf8_validator::mode::extreme);

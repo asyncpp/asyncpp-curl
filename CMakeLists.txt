@@ -9,6 +9,7 @@ project(AsyncppCURL)
 
 find_package(Threads REQUIRED)
 
+include(cmake/GetZLIB.cmake)
 include(cmake/GetCURL.cmake)
 
 option(ASYNCPP_BUILD_TEST "Enable test builds" ON)
@@ -36,7 +37,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/webclient.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/curl/websocket.cpp)
 target_link_libraries(asyncpp_curl PUBLIC asyncpp)
-target_link_libraries(asyncpp_curl PUBLIC CURL::libcurl Threads::Threads)
+target_link_libraries(asyncpp_curl PUBLIC CURL::libcurl ZLIB::ZLIB
+                                          Threads::Threads)
 target_include_directories(asyncpp_curl
                            PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_features(asyncpp_curl PUBLIC cxx_std_20)

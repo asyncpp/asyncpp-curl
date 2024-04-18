@@ -1,9 +1,4 @@
-#include <chrono>
-#include <condition_variable>
-#include <exception>
-#include <future>
 #include <iostream>
-#include <variant>
 
 #include <asyncpp/async_main.h>
 #include <asyncpp/curl/exception.h>
@@ -63,7 +58,7 @@ task<int> async_main(int argc, const char** argv) {
 		socket.set_on_open([i, ncases](int code) { std::cout << "Test case " << i << "/" << ncases << " ... " << std::flush; });
 		socket.set_on_message([&socket](websocket::buffer data, bool binary) { socket.send(data, binary, [](bool) {}); });
 		promise<bool> res;
-		socket.set_on_close([i, ncases, res, main_dp](uint16_t code, std::string_view reason) mutable {
+		socket.set_on_close([res, main_dp](uint16_t code, std::string_view reason) mutable {
 			std::cout << "finished (code=" << code << ", reason=\"" << reason << "\")" << std::endl;
 			main_dp->push([res]() mutable { res.fulfill({}); });
 		});
