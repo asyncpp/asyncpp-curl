@@ -247,7 +247,7 @@ namespace asyncpp::curl {
 		size_t out_offset = 0;
 		while (pmce_inflate.avail_in != 0) {
 			out_offset = out.size();
-			out.resize(std::max(in.size() * 2, out.size() * 2));
+			out.resize((std::max)(in.size() * 2, out.size() * 2));
 			pmce_inflate.next_out = reinterpret_cast<Byte*>(out.data() + out_offset);
 			pmce_inflate.avail_out = out.size() - out_offset;
 
@@ -264,7 +264,7 @@ namespace asyncpp::curl {
 		size_t out_offset = 0;
 		while (pmce_deflate.avail_in != 0) {
 			out_offset = out.size();
-			out.resize(std::max(in.size() * 2, out.size() * 2));
+			out.resize((std::max)(in.size() * 2, out.size() * 2));
 			pmce_deflate.next_out = reinterpret_cast<Byte*>(out.data() + out_offset);
 			pmce_deflate.avail_out = out.size() - out_offset;
 
@@ -332,7 +332,7 @@ namespace asyncpp::curl {
 					int deflate_window = 15;
 					if (auto pos = e.find("client_max_window_bits="); pos != std::string::npos) {
 						deflate_window = std::stoi(e.substr(pos + 23));
-						deflate_window = std::max(std::min(deflate_window, 15), 8);
+						deflate_window = (std::max)((std::min)(deflate_window, 15), 8);
 					}
 					if (auto pos = e.find("client_no_context_takeover"); pos != std::string::npos) state->pmce_client_no_context_takeover = true;
 					auto res = inflateInit2(&state->pmce_inflate, -15);
