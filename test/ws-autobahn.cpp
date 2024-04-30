@@ -57,10 +57,10 @@ task<int> async_main(int argc, const char** argv) {
 		websocket socket;
 		socket.set_on_open([i, ncases](int code) { std::cout << "Test case " << i << "/" << ncases << " ... " << std::flush; });
 		socket.set_on_message([&socket](websocket::buffer data, bool binary) { socket.send(data, binary, [](bool) {}); });
-		promise<bool> res;
+		promise<void> res;
 		socket.set_on_close([res, main_dp](uint16_t code, std::string_view reason) mutable {
 			std::cout << "finished (code=" << code << ", reason=\"" << reason << "\")" << std::endl;
-			main_dp->push([res]() mutable { res.fulfill({}); });
+			main_dp->push([res]() mutable { res.fulfill(); });
 		});
 		socket.connect(uri(base + "/runCase?case=" + std::to_string(i) + "&agent=" + app_name));
 		co_await res;
