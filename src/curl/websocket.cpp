@@ -416,7 +416,7 @@ namespace asyncpp::curl {
 			// No additional data
 			res = 0;
 		}
-		assert(res < (parser_data.size() - old_size));
+		assert(res <= (parser_data.size() - old_size));
 		parser_data.resize(old_size + res);
 
 		// Parse the data if there's any

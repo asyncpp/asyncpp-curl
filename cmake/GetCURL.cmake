@@ -26,13 +26,14 @@ else()
         OFF
         CACHE INTERNAL "" FORCE)
     set(BUILD_TESTING OFF)
+    set(CURL_USE_LIBPSL OFF)
 
     if(WIN32)
-      set(CMAKE_USE_SCHANNEL
+      set(CURL_USE_SCHANNEL
           ON
           CACHE INTERNAL "" FORCE)
     else()
-      set(CMAKE_USE_OPENSSL
+      set(CURL_USE_OPENSSL
           ON
           CACHE INTERNAL "" FORCE)
     endif()
@@ -40,13 +41,20 @@ else()
     include(FetchContent)
     FetchContent_Declare(
       curl
-      URL https://github.com/curl/curl/releases/download/curl-7_80_0/curl-7.80.0.tar.xz
+      URL https://github.com/curl/curl/releases/download/curl-8_18_0/curl-8.18.0.tar.xz
       URL_HASH
-        SHA256=a132bd93188b938771135ac7c1f3ac1d3ce507c1fcbef8c471397639214ae2ab # the file
-      # hash for curl-7.80.0.tar.xz
+        SHA256=40df79166e74aa20149365e11ee4c798a46ad57c34e4f68fd13100e2c9a91946
       USES_TERMINAL_DOWNLOAD TRUE)
     FetchContent_MakeAvailable(curl)
-    set_property(TARGET libcurl PROPERTY FOLDER "external")
+    get_property(
+      CURL_ALIAS_TARGET
+      TARGET libcurl
+      PROPERTY ALIASED_TARGET)
+    if("${CURL_ALIAS_TARGET}" STREQUAL "")
+      set_property(TARGET libcurl PROPERTY FOLDER "external")
+    else()
+      set_property(TARGET ${CURL_ALIAS_TARGET} PROPERTY FOLDER "external")
+    endif()
     message(STATUS "Building libcurl using FetchContent")
   endif()
 endif()
