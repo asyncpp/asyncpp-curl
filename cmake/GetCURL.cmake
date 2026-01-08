@@ -43,10 +43,13 @@ else()
       curl
       URL https://github.com/curl/curl/releases/download/curl-8_18_0/curl-8.18.0.tar.xz
       URL_HASH
-        SHA256=40df79166e74aa20149365e11ee4c798a46ad57c34e4f68fd13100e2c9a91946 
+        SHA256=40df79166e74aa20149365e11ee4c798a46ad57c34e4f68fd13100e2c9a91946
       USES_TERMINAL_DOWNLOAD TRUE)
     FetchContent_MakeAvailable(curl)
-    get_property(CURL_ALIAS_TARGET TARGET libcurl PROPERTY ALIASED_TARGET)
+    get_property(
+      CURL_ALIAS_TARGET
+      TARGET libcurl
+      PROPERTY ALIASED_TARGET)
     if("${CURL_ALIAS_TARGET}" STREQUAL "")
       set_property(TARGET libcurl PROPERTY FOLDER "external")
     else()
