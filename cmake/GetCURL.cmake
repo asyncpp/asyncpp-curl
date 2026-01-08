@@ -29,11 +29,11 @@ else()
     set(CURL_USE_LIBPSL OFF)
 
     if(WIN32)
-      set(CMAKE_USE_SCHANNEL
+      set(CURL_USE_SCHANNEL
           ON
           CACHE INTERNAL "" FORCE)
     else()
-      set(CMAKE_USE_OPENSSL
+      set(CURL_USE_OPENSSL
           ON
           CACHE INTERNAL "" FORCE)
     endif()
